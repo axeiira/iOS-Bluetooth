@@ -29,10 +29,11 @@ class DatabaseHelper {
         timestamp TEXT NOT NULL,
         latitude REAL NOT NULL,
         longitude REAL NOT NULL,
-        speed REAL NOT NULL,
+        speed INTEGER NOT NULL,
+        heading INTEGER NOT NULL,
         fuel REAL NOT NULL,
         engine_hours REAL NOT NULL,
-        ignition INTEGER NOT NULL,
+        ignition_status INTEGER NOT NULL,
         is_synced INTEGER NOT NULL DEFAULT 0
       )
     ''');

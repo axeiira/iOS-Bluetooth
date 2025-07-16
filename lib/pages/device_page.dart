@@ -67,21 +67,31 @@ class _DevicePageState extends State<DevicePage> {
   }
 
   void _onDataReceived(String dataString) async {
-    if (dataString.isEmpty) return;
+    final cleanDataString = dataString.trim();
+    if (cleanDataString.isEmpty) return;
+    if (cleanDataString.isEmpty) return;
 
     final parts = dataString.split(',');
-    if (parts.length >= 8) {
+
+    // debug
+    print("Data Diterima (Bersih): $cleanDataString");
+    print("Jumlah Bagian: ${parts.length}");
+    print("Bagian terakhir (ignition): '${parts.last}'");
+
+    if (parts.length >= 9) {
       final dataMap = {
-        'device_id': parts[0],
-        'timestamp': parts[1],
-        'latitude': double.tryParse(parts[2]) ?? 0.0,
-        'longitude': double.tryParse(parts[3]) ?? 0.0,
-        'speed': double.tryParse(parts[4]) ?? 0.0,
-        'fuel': double.tryParse(parts[5]) ?? 0.0,
-        'engine_hours': double.tryParse(parts[6]) ?? 0.0,
-        'ignition': (parts[7] == '1' ? 1 : 0),
+        'device_id': parts[0].trim(),
+        'timestamp': parts[1].trim(),
+        'latitude': double.tryParse(parts[2].trim()) ?? 0.0,
+        'longitude': double.tryParse(parts[3].trim()) ?? 0.0,
+        'speed': int.tryParse(parts[4].trim()) ?? 0.0,
+        'heading': int.tryParse(parts[5].trim()) ?? 0, 
+        'fuel': double.tryParse(parts[6].trim()) ?? 0.0,
+        'engine_hours': double.tryParse(parts[7].trim()) ?? 0.0,
+        'ignition_status':(parts[8].trim() == '1' ? 1 : 0),
       };
 
+      print("Data Map yang akan disimpan: $dataMap");
       await DatabaseHelper.instance.insertTelemetry(dataMap);
       if (mounted) {
         setState(() {
@@ -106,6 +116,7 @@ class _DevicePageState extends State<DevicePage> {
       (-6.0 + random.nextDouble()).toStringAsFixed(6),
       (106.0 + random.nextDouble()).toStringAsFixed(6),
       random.nextInt(100).toString(),
+      random.nextInt(360).toString(),
       (30.0 + random.nextDouble() * 20).toStringAsFixed(1),
       (1500.0 + random.nextDouble() * 100).toStringAsFixed(1),
       random.nextBool() ? "1" : "0"

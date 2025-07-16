@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../utils/database_helper.dart';
-import '../utils/http_manager.dart';
+import '../utils/http_manager.dart'; // HttpManager sekarang mengembalikan SendResult
 
 class SyncPage extends StatefulWidget {
   const SyncPage({super.key});
@@ -15,6 +15,7 @@ class _SyncPageState extends State<SyncPage> {
   int _unsyncedCount = 0;
   bool _isSyncing = false;
   String _statusMessage = "Siap untuk sinkronisasi.";
+  Color _statusColor = Colors.black; // Warna untuk teks status
 
   @override
   void initState() {
@@ -32,6 +33,7 @@ class _SyncPageState extends State<SyncPage> {
     setState(() {
       _isSyncing = true;
       _statusMessage = "Mengambil data dari database...";
+      _statusColor = Colors.blue;
     });
 
     final unsyncedData = await DatabaseHelper.instance.getUnsyncedTelemetry();
@@ -39,6 +41,7 @@ class _SyncPageState extends State<SyncPage> {
       setState(() {
         _isSyncing = false;
         _statusMessage = "Semua data sudah sinkron!";
+        _statusColor = Colors.green;
       });
       return;
     }
@@ -48,30 +51,36 @@ class _SyncPageState extends State<SyncPage> {
       final Map<String, dynamic> payload = Map.from(data);
       final int id = payload.remove('id');
       payload.remove('is_synced');
-      // Konversi ignition dari 1/0 ke true/false untuk JSON
-      payload['ignition'] = (payload['ignition'] == 1);
+      payload['ignition_status'] = (payload['ignition_status'] == 1);
+
+      print("Data dari DB (ID: $id) sebelum dikirim: $payload");
 
       setState(() => _statusMessage = "Mengirim data ID: $id...");
 
-      bool isSuccess = await _httpManager.sendData(payload);
-      if (isSuccess) {
+      // Panggil HttpManager dan dapatkan hasilnya
+      SendResult result = await _httpManager.sendData(payload);
+
+      if (result.success) {
         await DatabaseHelper.instance.markAsSynced(id);
         successCount++;
         if (mounted) setState(() => _unsyncedCount = unsyncedData.length - successCount);
       } else {
+        // Jika gagal, tampilkan pesan error dari SendResult di UI
         if (mounted) {
           setState(() {
             _isSyncing = false;
-            _statusMessage = "Gagal mengirim data ID: $id. Cek koneksi internet atau server. Sinkronisasi dihentikan.";
+            _statusMessage = "GAGAL!\nPesan Error:\n${result.message}"; // Tampilkan pesan error detail
+            _statusColor = Colors.red; // Ubah warna teks menjadi merah
           });
         }
-        return;
+        return; // Hentikan loop
       }
     }
 
     setState(() {
       _isSyncing = false;
       _statusMessage = "Sinkronisasi selesai. $successCount data berhasil dikirim.";
+      _statusColor = Colors.green;
     });
   }
 
@@ -102,7 +111,18 @@ class _SyncPageState extends State<SyncPage> {
                   ),
                 ),
               const SizedBox(height: 20),
-              Text(_statusMessage, textAlign: TextAlign.center),
+              // Tampilkan pesan status dengan warna yang sesuai
+              Card(
+                color: _statusColor.withOpacity(0.1),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Text(
+                    _statusMessage, 
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: _statusColor, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
