@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../utils/database_helper.dart';
-import '../utils/http_manager.dart'; // HttpManager sekarang mengembalikan SendResult
+import '../utils/http_manager.dart';
 
 class SyncPage extends StatefulWidget {
   const SyncPage({super.key});
@@ -15,7 +15,7 @@ class _SyncPageState extends State<SyncPage> {
   int _unsyncedCount = 0;
   bool _isSyncing = false;
   String _statusMessage = "Siap untuk sinkronisasi.";
-  Color _statusColor = Colors.black; // Warna untuk teks status
+  Color _statusColor = Colors.black; 
 
   @override
   void initState() {
@@ -57,7 +57,6 @@ class _SyncPageState extends State<SyncPage> {
 
       setState(() => _statusMessage = "Mengirim data ID: $id...");
 
-      // Panggil HttpManager dan dapatkan hasilnya
       SendResult result = await _httpManager.sendData(payload);
 
       if (result.success) {
@@ -65,15 +64,14 @@ class _SyncPageState extends State<SyncPage> {
         successCount++;
         if (mounted) setState(() => _unsyncedCount = unsyncedData.length - successCount);
       } else {
-        // Jika gagal, tampilkan pesan error dari SendResult di UI
         if (mounted) {
           setState(() {
             _isSyncing = false;
-            _statusMessage = "GAGAL!\nPesan Error:\n${result.message}"; // Tampilkan pesan error detail
-            _statusColor = Colors.red; // Ubah warna teks menjadi merah
+            _statusMessage = "GAGAL!\nPesan Error:\n${result.message}";
+            _statusColor = Colors.red; 
           });
         }
-        return; // Hentikan loop
+        return;
       }
     }
 
@@ -111,7 +109,6 @@ class _SyncPageState extends State<SyncPage> {
                   ),
                 ),
               const SizedBox(height: 20),
-              // Tampilkan pesan status dengan warna yang sesuai
               Card(
                 color: _statusColor.withOpacity(0.1),
                 child: Padding(

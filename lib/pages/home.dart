@@ -18,7 +18,7 @@ class _HomePageState extends State<HomePage> {
   final ValueNotifier<String> receivedDataNotifier = ValueNotifier('');
 
   void startScan() {
-    setState(() {}); // Memperbarui UI untuk menampilkan indikator loading
+    setState(() {});
     flutterBlue.startScan(timeout: const Duration(seconds: 5));
   }
 
@@ -37,7 +37,7 @@ class _HomePageState extends State<HomePage> {
     try {
       await device.connect(timeout: const Duration(seconds: 10));
       if (!mounted) return;
-      Navigator.pop(context); // Tutup dialog
+      Navigator.pop(context);
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -68,7 +68,6 @@ class _HomePageState extends State<HomePage> {
                     icon: const Icon(Icons.bug_report),
                     label: const Text("Masuk Mode Simulasi"),
                     onPressed: () {
-                      // Panggil DevicePage tanpa mengirim parameter device
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const DevicePage()),
