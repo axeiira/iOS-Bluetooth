@@ -106,25 +106,46 @@ class _HomePageState extends State<HomePage> {
 
   void connectToDevice(BluetoothDevice device) async {
     await FlutterBluePlus.stopScan();
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [CircularProgressIndicator(), SizedBox(height: 16), Text("Connecting...")],
-        ),
-      ),
-    );
+    bool dialogShown = false;
     try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [CircularProgressIndicator(), SizedBox(height: 16), Text("Connecting...")],
+          ),
+        ),
+      );
+      dialogShown = true;
+      print("[DEBUG] Attempting to connect to device: ${device.remoteId}");
       await device.connect(timeout: const Duration(seconds: 15));
-      if (!mounted) return;
-      Navigator.pop(context);
-      Navigator.push(context, MaterialPageRoute(builder: (context) => DevicePage(device: device)));
+      print("[DEBUG] Device connected, navigating to DevicePage");
+      if (!mounted) {
+        if (dialogShown) Navigator.pop(context);
+        return;
+      }
+      if (dialogShown) Navigator.pop(context);
+      try {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => DevicePage(device: device)),
+        );
+      } catch (navError) {
+        print("[ERROR] Navigation to DevicePage failed: $navError");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Navigation Failed: $navError")),
+        );
+      }
     } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Connection Failed: $e")));
+      print("[ERROR] Connection failed: $e");
+      if (dialogShown && mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Connection Failed: $e")),
+        );
+      }
     }
   }
 
