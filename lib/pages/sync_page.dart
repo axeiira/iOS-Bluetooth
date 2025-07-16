@@ -14,8 +14,9 @@ class _SyncPageState extends State<SyncPage> {
   final HttpManager _httpManager = HttpManager();
   int _unsyncedCount = 0;
   bool _isSyncing = false;
-  String _statusMessage = "Siap untuk sinkronisasi.";
-  Color _statusColor = Colors.black; 
+  String _statusMessage = "Ready to sync.";
+  Color _statusColor = Colors.black87;
+  String _currentJsonPayload = "";
 
   @override
   void initState() {
@@ -32,15 +33,16 @@ class _SyncPageState extends State<SyncPage> {
     if (_isSyncing) return;
     setState(() {
       _isSyncing = true;
-      _statusMessage = "Mengambil data dari database...";
+      _statusMessage = "Fetching data from local database...";
       _statusColor = Colors.blue;
+      _currentJsonPayload = "";
     });
 
     final unsyncedData = await DatabaseHelper.instance.getUnsyncedTelemetry();
     if (unsyncedData.isEmpty) {
       setState(() {
         _isSyncing = false;
-        _statusMessage = "Semua data sudah sinkron!";
+        _statusMessage = "All data is already synced!";
         _statusColor = Colors.green;
       });
       return;
@@ -51,14 +53,15 @@ class _SyncPageState extends State<SyncPage> {
       final Map<String, dynamic> payload = Map.from(data);
       final int id = payload.remove('id');
       payload.remove('is_synced');
-      payload['ignition_status'] = (payload['ignition_status'] == 1);
+      payload['ignition'] = (payload['ignition_status'] == 1); // Sesuaikan key jika diperlukan
+      payload.remove('ignition_status'); // Hapus yang lama jika diganti
 
-      print("Data dari DB (ID: $id) sebelum dikirim: $payload");
-
-      setState(() => _statusMessage = "Mengirim data ID: $id...");
+      setState(() {
+        _statusMessage = "Sending data with ID: $id...";
+        _currentJsonPayload = const JsonEncoder.withIndent(' ').convert(payload);
+      });
 
       SendResult result = await _httpManager.sendData(payload);
-
       if (result.success) {
         await DatabaseHelper.instance.markAsSynced(id);
         successCount++;
@@ -67,8 +70,8 @@ class _SyncPageState extends State<SyncPage> {
         if (mounted) {
           setState(() {
             _isSyncing = false;
-            _statusMessage = "GAGAL!\nPesan Error:\n${result.message}";
-            _statusColor = Colors.red; 
+            _statusMessage = "FAILED!\nError Message:\n${result.message}";
+            _statusColor = Colors.red;
           });
         }
         return;
@@ -77,7 +80,8 @@ class _SyncPageState extends State<SyncPage> {
 
     setState(() {
       _isSyncing = false;
-      _statusMessage = "Sinkronisasi selesai. $successCount data berhasil dikirim.";
+      _statusMessage = "Sync complete. $successCount records were sent successfully.";
+      _currentJsonPayload = "";
       _statusColor = Colors.green;
     });
   }
@@ -85,43 +89,72 @@ class _SyncPageState extends State<SyncPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Sinkronisasi Data")),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text("Data yang belum dikirim:", style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 10),
-              Text("$_unsyncedCount", style: Theme.of(context).textTheme.displayMedium?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 40),
-              if (_isSyncing)
-                const CircularProgressIndicator()
-              else
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.sync),
-                  label: const Text("Mulai Sinkronisasi"),
-                  onPressed: _unsyncedCount > 0 ? _startSync : null,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    textStyle: const TextStyle(fontSize: 18),
-                  ),
+      appBar: AppBar(title: const Text("Data Synchronization")),
+      body: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Status Card
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    const Text("Unsynced Records", style: TextStyle(fontSize: 18, color: Colors.black54)),
+                    const SizedBox(height: 8),
+                    Text("$_unsyncedCount", style: Theme.of(context).textTheme.displayLarge?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
+                  ],
                 ),
-              const SizedBox(height: 20),
-              Card(
+              ),
+            ),
+            const SizedBox(height: 32),
+            // Sync Button
+            if (_isSyncing)
+              const Center(child: CircularProgressIndicator())
+            else
+              ElevatedButton.icon(
+                icon: const Icon(Icons.sync_rounded),
+                label: const Text("Start Synchronization"),
+                onPressed: _unsyncedCount > 0 ? _startSync : null,
+              ),
+            const SizedBox(height: 24),
+            // Status Message Area
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
                 color: _statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                _statusMessage,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _statusColor, fontWeight: FontWeight.w500),
+              ),
+            ),
+            if (_isSyncing && _currentJsonPayload.isNotEmpty)
+              Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Text(
-                    _statusMessage, 
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: _statusColor, fontWeight: FontWeight.w500),
+                  padding: const EdgeInsets.only(top: 16.0),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("Sending Payload:", style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          width: double.infinity,
+                          decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(8)),
+                          child: SelectableText(_currentJsonPayload, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );

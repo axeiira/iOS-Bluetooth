@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 class SendResult {
   final bool success;
   final String message;
-
   SendResult({required this.success, required this.message});
 }
 

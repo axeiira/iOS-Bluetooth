@@ -3,7 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>This app uses Bluetooth to connect to and communicate with nearby devices.</string>
+	<string>We need bluetooth to find and connect to your FMC device.</string>
+	<key>NSBluetoothScanUsageDescription</key>
+	<string>We need bluetooth to scan for nearby FMC devices.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>We need bluetooth to find and connect to your FMC device.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -28,8 +32,6 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>This app uses Bluetooth to connect to and communicate with nearby devices.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
