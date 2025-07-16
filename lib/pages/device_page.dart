@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:convert'; // Pastikan ini di-import
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../utils/database_helper.dart';
@@ -16,7 +16,7 @@ class _DevicePageState extends State<DevicePage> {
   StreamSubscription<BluetoothConnectionState>? _stateSubscription;
   StreamSubscription<List<int>>? _dataSubscription;
   Map<String, dynamic>? _lastReceivedData;
-  int _savedDataCount = 0; // Tidak terpakai di sini, tapi dipertahankan
+  int _savedDataCount = 0;
   BluetoothConnectionState _connectionState = BluetoothConnectionState.connecting;
 
   @override
@@ -39,99 +39,121 @@ class _DevicePageState extends State<DevicePage> {
     super.dispose();
   }
 
-  // FUNGSI BARU UNTUK DISCONNECT MANUAL
   Future<void> _disconnectDevice() async {
-    _dataSubscription?.cancel(); // Hentikan langganan data dulu
-    _stateSubscription?.cancel(); // Hentikan langganan state
+    _dataSubscription?.cancel();
+    _stateSubscription?.cancel();
     await widget.device.disconnect();
     if(mounted) {
-      // Kembali ke halaman sebelumnya setelah disconnect
       Navigator.of(context).pop();
     }
   }
 
-  // Fungsi ini perlu diisi atau diimplementasikan agar dapat digunakan
   void _discoverServicesAndSubscribe() async {
-    // Implementasi untuk menemukan layanan dan karakteristik
-    // Kemudian berlangganan karakteristik yang mengirim data.
-    // Contoh:
     try {
       List<BluetoothService> services = await widget.device.discoverServices();
       for (BluetoothService service in services) {
-        // Cari service yang relevan (misal, service UUID tertentu)
-        // dan karakteristik di dalamnya
-        for (BluetoothCharacteristic characteristic in service.characteristics) {
-          if (characteristic.properties.notify || characteristic.properties.indicate) {
-            await characteristic.setNotifyValue(true);
-            _dataSubscription = characteristic.value.listen((value) {
-              if (value.isNotEmpty) {
-                // Asumsikan data adalah string JSON
-                try {
-                  String dataString = utf8.decode(value);
-                  _onDataReceived(dataString);
-                } catch (e) {
-                  print("Error decoding data: $e");
+        // Asumsi service UUID yang relevan adalah 6e400001-b5a3-f393-e0a9-e50e24dcca9e
+        // Dan characteristic yang mengirim notifikasi adalah 6e400003-b5a3-f393-e0a9-e50e24dcca9e (RX Characteristic)
+        // Ini sesuai dengan log Anda
+        if (service.uuid.str.toLowerCase() == "6e400001-b5a3-f393-e0a9-e50e24dcca9e") {
+          for (BluetoothCharacteristic characteristic in service.characteristics) {
+            if (characteristic.uuid.str.toLowerCase() == "6e400003-b5a3-f393-e0a9-e50e24dcca9e" &&
+                characteristic.properties.notify) {
+              await characteristic.setNotifyValue(true);
+              _dataSubscription = characteristic.value.listen((value) {
+                if (value.isNotEmpty) {
+                  try {
+                    String dataString = utf8.decode(value);
+                    _onDataReceived(dataString);
+                  } catch (e) {
+                    print("Error decoding data (UTF8): $e");
+                  }
                 }
-              }
-            });
+              });
+              return; // Langsung keluar setelah menemukan dan subscribe characteristic yang benar
+            }
           }
         }
       }
+      print("LOG: No suitable notification characteristic found.");
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("No suitable characteristic for data reception found.")),
+        );
+      }
     } catch (e) {
-      print("Error discovering services: $e");
+      print("LOG: Error discovering services: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to discover services: $e")));
       }
     }
   }
 
+
+  // --- MODIFIKASI FUNGSI INI ---
   void _onDataReceived(String dataString) async {
+    print("LOG: _onDataReceived received: $dataString");
     try {
-      final Map<String, dynamic> jsonData = jsonDecode(dataString);
-      // Contoh validasi data (sesuaikan dengan format data ESP32 Anda)
-      if (jsonData.containsKey('latitude') &&
-          jsonData.containsKey('longitude') &&
-          jsonData.containsKey('speed') &&
-          jsonData.containsKey('heading') &&
-          jsonData.containsKey('fuel') &&
-          jsonData.containsKey('engine_hours') &&
-          jsonData.containsKey('ignition_status')) {
+      // Data format: FMC650_001,2025-07-09T10:30:40,-6.197700,106.820166,58,189,37.2,3962,0
+      final List<String> parts = dataString.split(',');
+
+      if (parts.length == 9) { // Pastikan jumlah bagian sesuai
+        final String deviceName = parts[0];
+        final String timestamp = parts[1];
+        final double latitude = double.parse(parts[2]);
+        final double longitude = double.parse(parts[3]);
+        final int speed = int.parse(parts[4]);
+        final int heading = int.parse(parts[5]);
+        final double fuel = double.parse(parts[6]);
+        final double engineHours = double.parse(parts[7]);
+        final int ignitionStatus = int.parse(parts[8]);
+
+        final Map<String, dynamic> parsedData = {
+          'device_name': deviceName,
+          'timestamp': timestamp,
+          'latitude': latitude,
+          'longitude': longitude,
+          'speed': speed,
+          'heading': heading,
+          'fuel': fuel,
+          'engine_hours': engineHours,
+          'ignition_status': ignitionStatus,
+        };
 
         // Siapkan data untuk disimpan ke database
         final dataToSave = {
-          'device_id': widget.device.remoteId.toString(),
-          'timestamp': DateTime.now().toIso8601String(),
-          'latitude': jsonData['latitude'],
-          'longitude': jsonData['longitude'],
-          'speed': jsonData['speed'],
-          'heading': jsonData['heading'],
-          'fuel': jsonData['fuel'],
-          'engine_hours': jsonData['engine_hours'],
-          'ignition_status': jsonData['ignition_status'],
+          'device_id': widget.device.remoteId.str, // Gunakan remoteId.str
+          'timestamp': timestamp,
+          'latitude': latitude,
+          'longitude': longitude,
+          'speed': speed,
+          'heading': heading,
+          'fuel': fuel,
+          'engine_hours': engineHours,
+          'ignition_status': ignitionStatus,
         };
 
         await DatabaseHelper.instance.insertTelemetry(dataToSave);
         if (mounted) {
           setState(() {
-            _lastReceivedData = jsonData;
+            _lastReceivedData = parsedData; // Gunakan parsedData untuk tampilan
             _savedDataCount++; // Update count, meskipun tidak ditampilkan
           });
         }
-        print("Data saved: $jsonData");
+        print("LOG: Data saved and UI updated: $parsedData");
       } else {
-        print("Received incomplete or invalid JSON data: $dataString");
+        print("LOG: Received data has incorrect number of parts: $dataString");
       }
     } catch (e) {
-      print("Error processing data: $e | Data String: $dataString");
+      print("LOG: Error parsing data: $e | Data String: $dataString");
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      // Mencegah pengguna menekan tombol kembali bawaan
       onWillPop: () async {
-        // Tampilkan dialog konfirmasi
         bool shouldPop = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -150,16 +172,15 @@ class _DevicePageState extends State<DevicePage> {
               ),
             ],
           ),
-        ) ?? false; // Jika dialog ditutup tanpa pilihan, anggap 'false'
+        ) ?? false;
         if (shouldPop) {
           await _disconnectDevice();
         }
-        return false; // Mencegah pop otomatis
+        return false;
       },
       child: Scaffold(
         appBar: AppBar(
           title: Text(widget.device.platformName.isNotEmpty ? widget.device.platformName : "Device Data"),
-          // TOMBOL DISCONNECT EKSPLISIT
           actions: [
             IconButton(
               icon: const Icon(Icons.bluetooth_disabled),
@@ -230,10 +251,14 @@ class _DevicePageState extends State<DevicePage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: _lastReceivedData!.entries.map((entry) {
+        String displayValue = entry.value.toString();
+        if (entry.key == 'ignition_status') {
+          displayValue = entry.value == 1 ? 'ON' : 'OFF';
+        }
         return Card(
           child: ListTile(
             title: Text(entry.key.replaceAll('_', ' ').toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(entry.value.toString(), style: const TextStyle(fontSize: 16)),
+            subtitle: Text(displayValue, style: const TextStyle(fontSize: 16)),
           ),
         );
       }).toList(),
