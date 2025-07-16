@@ -25,22 +25,28 @@ class _HomePageState extends State<HomePage> {
     // Langganan untuk hasil scan
     _scanResultsSubscription = FlutterBluePlus.scanResults.listen((results) {
       if (mounted) {
-        setState(() {
-          _scanResults = results;
-          final fmcResults = results
-              .where((r) => r.device.platformName.isNotEmpty && r.device.platformName.startsWith("FMC"))
-              .toList();
+        try {
+          setState(() {
+            _scanResults = results;
+            final fmcResults = results
+                .where((r) => r.device.platformName.isNotEmpty && r.device.platformName.startsWith("FMC"))
+                .toList();
 
-          if (fmcResults.isNotEmpty) {
-            final firstResult = fmcResults.first;
-            print("--- [DEBUG] FMC DEVICE DETECTED ---");
-            print("Nama Perangkat: '${firstResult.device.platformName}'");
-            print("ID Remote: ${firstResult.device.remoteId}");
-            print("RSSI: ${firstResult.rssi}");
-            print("Data Advertisement: ${firstResult.advertisementData}");
-            print("---------------------------------");
-          }
-        });
+            if (fmcResults.isNotEmpty) {
+              final firstResult = fmcResults.first;
+              print("--- [DEBUG] FMC DEVICE DETECTED ---");
+              print("Nama Perangkat: 'irstResult.device.platformName}'");
+              print("ID Remote: irstResult.device.remoteId");
+              print("RSSI: irstResult.rssi");
+              print("Data Advertisement: irstResult.advertisementData");
+              print("---------------------------------");
+            }
+          });
+        } catch (e, stack) {
+          print('[ERROR] Exception in scanResults listener: $e');
+          print(stack);
+          // Optionally show a snackbar or error widget
+        }
       }
     });
 
