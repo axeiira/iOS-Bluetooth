@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'device_page.dart';
 import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -11,53 +12,50 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-
-  List<ScanResult> _scanResults = [];
+  List<ScanResult> _scanResults = []; 
   bool _isScanning = false;
+  BluetoothAdapterState _adapterState = BluetoothAdapterState.unknown;
+
   StreamSubscription<List<ScanResult>>? _scanResultsSubscription;
   StreamSubscription<bool>? _isScanningSubscription;
   StreamSubscription<BluetoothAdapterState>? _adapterStateSubscription;
-  BluetoothAdapterState _adapterState = BluetoothAdapterState.unknown;
 
-  Timer? _debounceTimer;
-  List<ScanResult> _latestScanResultsFromStream = [];
+  String _networkType = 'Unknown';
+  String _networkStatus = 'Disconnected';
+  final Connectivity _connectivity = Connectivity();
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   @override
   void initState() {
     super.initState();
-    print("LOG: HomePage initState called.");
+    print("REAL: HomePage initState called.");
 
+    // Langganan untuk hasil scan nyata
     _scanResultsSubscription = FlutterBluePlus.scanResults.listen((results) {
-      print("LOG: Scan results received from FlutterBluePlus. Total: ${results.length}");
-      _latestScanResultsFromStream = results;
-      _debounceTimer?.cancel();
-      _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-        print("LOG: Debounce timer fired. Calling setState.");
-        if (mounted) {
-          setState(() {
-            _scanResults = _latestScanResultsFromStream;
-            final fmcResults = _scanResults
-                .where((r) => r.device.platformName.isNotEmpty && r.device.platformName.startsWith("FMC"))
-                .toList();
-
-            if (fmcResults.isNotEmpty) {
-              final firstResult = fmcResults.first;
-              print("LOG: --- FMC DEVICE DETECTED (MANUAL DEBOUNCED) ---");
-              print("LOG: Nama Perangkat: '${firstResult.device.platformName}'");
-              print("LOG: ID Remote: ${firstResult.device.remoteId.str}"); 
-              print("LOG: RSSI: ${firstResult.rssi}");
-              print("LOG: Data Advertisement: ${firstResult.advertisementData}");
-              print("LOG: ---------------------------------");
-            } else {
-              print("LOG: No FMC devices found after filter in debounced results.");
-            }
-          });
+      print("REAL: Scan results received from FlutterBluePlus. Total: ${results.length}");
+      if (mounted) {
+        setState(() {
+          _scanResults = results; // Update dengan hasil scan nyata
+        });
+        // Logging perangkat FMC yang terdeteksi secara real-time
+        final fmcResults = results
+            .where((r) => r.device.platformName.isNotEmpty && r.device.platformName.startsWith("FMC"))
+            .toList();
+        if (fmcResults.isNotEmpty) {
+          final firstResult = fmcResults.first;
+          print("REAL: --- FMC DEVICE DETECTED ---");
+          print("REAL: Nama Perangkat: '${firstResult.device.platformName}'");
+          print("REAL: ID Remote: ${firstResult.device.remoteId.str}");
+          print("REAL: RSSI: ${firstResult.rssi}");
+          print("REAL: Data Advertisement: ${firstResult.advertisementData}");
+          print("REAL: ---------------------------------");
         }
-      });
+      }
     });
 
+    // Langganan untuk status scanning nyata
     _isScanningSubscription = FlutterBluePlus.isScanning.listen((state) {
-      print("LOG: isScanning state changed to: $state");
+      print("REAL: isScanning state changed to: $state");
       if (mounted) {
         setState(() {
           _isScanning = state;
@@ -65,50 +63,95 @@ class _HomePageState extends State<HomePage> {
       }
     });
 
+    // Langganan untuk status adapter Bluetooth nyata
     _adapterStateSubscription = FlutterBluePlus.adapterState.listen((state) {
-      print("LOG: Adapter state changed to: $state");
+      print("REAL: Adapter state changed to: $state");
       if (mounted) {
         setState(() {
           _adapterState = state;
         });
       }
     });
+
+    // Inisialisasi dan mulai pembaruan info jaringan
+    _updateNetworkInfo();
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      _updateNetworkInfo(results.first);
+    });
   }
 
   @override
   void dispose() {
-    print("LOG: HomePage dispose called.");
+    print("REAL: HomePage dispose called.");
     _scanResultsSubscription?.cancel();
     _isScanningSubscription?.cancel();
     _adapterStateSubscription?.cancel();
-    _debounceTimer?.cancel();
+    _connectivitySubscription?.cancel();
     super.dispose();
   }
 
+  Future<void> _updateNetworkInfo([ConnectivityResult? result]) async {
+    try {
+      final ConnectivityResult connectivityResult = result ?? (await _connectivity.checkConnectivity()).first;
+      String type = 'Unknown';
+      String status = 'Disconnected';
+
+      if (connectivityResult == ConnectivityResult.wifi) {
+        type = 'WiFi';
+        status = 'Connected';
+      } else if (connectivityResult == ConnectivityResult.mobile) {
+        type = 'Mobile Data';
+        status = 'Connected';
+      } else if (connectivityResult == ConnectivityResult.none) {
+        type = 'None';
+        status = 'Disconnected';
+      } else {
+        type = connectivityResult.toString().split('.').last;
+        status = 'Connected';
+      }
+
+      if (mounted) {
+        setState(() {
+          _networkType = type;
+          _networkStatus = status;
+        });
+      }
+    } catch (e) {
+      print("REAL: Error getting network info: $e");
+      if (mounted) {
+        setState(() {
+          _networkType = 'Error';
+          _networkStatus = 'Disconnected';
+        });
+      }
+    }
+  }
+
+  // Fungsi startScan akan memicu scan Bluetooth nyata
   void startScan() async {
-    print("LOG: startScan called.");
+    print("REAL: startScan called. Initiating real BLE scan.");
     if (_adapterState != BluetoothAdapterState.on) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Bluetooth is not ON. Please turn it on in your device settings.")),
       );
-      print("LOG: Bluetooth is off, scan aborted.");
+      print("REAL: Bluetooth is off, scan aborted.");
       return;
     }
 
-    FlutterBluePlus.stopScan();
-    print("LOG: FlutterBluePlus.stopScan() called.");
+    FlutterBluePlus.stopScan(); // Pastikan scan sebelumnya berhenti
+    print("REAL: FlutterBluePlus.stopScan() called.");
     setState(() {
-      _scanResults = [];
-      _latestScanResultsFromStream = [];
+      _scanResults = []; // Kosongkan hasil sebelumnya
     });
-    print("LOG: Starting scan for 10 seconds.");
-    FlutterBluePlus.startScan(timeout: const Duration(seconds: 10)); 
+    print("REAL: Starting real BLE scan for 10 seconds.");
+    await FlutterBluePlus.startScan(timeout: const Duration(seconds: 10));
   }
 
+  // Fungsi connectToDevice akan mencoba koneksi Bluetooth nyata
   void connectToDevice(BluetoothDevice device) async {
-    print("LOG: Attempting to connect to device: ${device.platformName} (${device.remoteId.str})");
-    await FlutterBluePlus.stopScan();
-    print("LOG: Scan stopped before connection attempt.");
+    print("REAL: Attempting to connect to device: ${device.platformName} (${device.remoteId.str})");
+    await FlutterBluePlus.stopScan(); // Hentikan scan sebelum koneksi
+    print("REAL: Scan stopped before connection attempt.");
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -121,12 +164,12 @@ class _HomePageState extends State<HomePage> {
     );
     try {
       await device.connect(timeout: const Duration(seconds: 15));
-      print("LOG: Device connected successfully!");
+      print("REAL: Device connected successfully!");
       if (!mounted) return;
-      Navigator.pop(context);
+      Navigator.pop(context); // Tutup dialog koneksi
       Navigator.push(context, MaterialPageRoute(builder: (context) => DevicePage(device: device)));
     } catch (e) {
-      print("LOG: Connection Failed: $e");
+      print("REAL: Connection Failed: $e");
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Connection Failed: $e")));
@@ -135,160 +178,297 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    print("LOG: HomePage build method called. Current _isScanning: $_isScanning, _adapterState: $_adapterState");
+    print("REAL: HomePage build method called. Current _isScanning: $_isScanning, _adapterState: $_adapterState");
     return Scaffold(
       appBar: AppBar(
-        title: const Text('IoT Data Collector (Scan)'),
-        elevation: 1,
+        title: const Text('IoT Device Scanner'),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.indigo,
+        foregroundColor: Colors.white,
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Card(
-              color: _isScanning ? Colors.blue.shade50 : Colors.grey.shade100,
-              elevation: 0,
-              child: ListTile(
-                leading: _isScanning
-                    ? const CircularProgressIndicator()
-                    : Icon(
-                        _adapterState == BluetoothAdapterState.on ? Icons.info_outline_rounded : Icons.bluetooth_disabled,
-                        color: _adapterState == BluetoothAdapterState.on ? null : Colors.red,
-                      ),
-                title: Text(_isScanning
-                    ? "Scanning in Progress..."
-                    : _adapterState == BluetoothAdapterState.on
-                        ? "Ready to Scan"
-                        : "Bluetooth is OFF"),
-                subtitle: Text(_isScanning
-                    ? "Looking for FMC devices."
-                    : _adapterState == BluetoothAdapterState.on
-                        ? "Pull down or use the button to scan."
-                        : "Please turn on Bluetooth to scan."),
-              ),
+      backgroundColor: Colors.grey.shade100,
+      body: RefreshIndicator(
+        onRefresh: () {
+          startScan();
+          return Future.delayed(const Duration(seconds: 5));
+        },
+        child: Column(
+          children: [
+            _buildScanStatusCard(context),
+            _buildNetworkStatusCard(context),
+            const Divider(indent: 16, endIndent: 16),
+            Expanded(
+              child: _buildDeviceList(),
             ),
-          ),
-          const Divider(indent: 16, endIndent: 16),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () {
-                startScan();
-                return Future.delayed(const Duration(seconds: 5));
-              },
-              child: _buildResultsView(),
-            ),
-          ),
-        ],
+            SizedBox(height: 80),
+          ],
+        ),
       ),
       floatingActionButton: _isScanning
-          ? FloatingActionButton(
+          ? FloatingActionButton.extended(
               onPressed: () {
                 FlutterBluePlus.stopScan();
-                print("LOG: Stop Scan button pressed.");
+                print("REAL: Stop Scan button pressed.");
               },
-              backgroundColor: Colors.red,
-              child: const Icon(Icons.stop, color: Colors.white),
+              label: const Text("Stop Scan"),
+              icon: const Icon(Icons.stop),
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
             )
-          : FloatingActionButton(
+          : FloatingActionButton.extended(
               onPressed: _adapterState == BluetoothAdapterState.on ? startScan : null,
-              backgroundColor: _adapterState == BluetoothAdapterState.on ? Theme.of(context).colorScheme.primary : Colors.grey,
-              child: const Icon(Icons.search, color: Colors.white),
+              label: const Text("Scan Devices"),
+              icon: const Icon(Icons.search),
+              backgroundColor: _adapterState == BluetoothAdapterState.on ? Colors.indigo : Colors.grey,
+              foregroundColor: Colors.white,
             ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
-  Widget _buildResultsView() {
-    print("LOG: _buildResultsView called.");
+  Widget _buildScanStatusCard(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Card(
+        color: _isScanning ? Colors.blue.shade50 : (_adapterState == BluetoothAdapterState.on ? Colors.green.shade50 : Colors.red.shade50),
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _isScanning ? const CircularProgressIndicator(strokeWidth: 2) : Icon(
+                    _adapterState == BluetoothAdapterState.on ? Icons.bluetooth_searching : Icons.bluetooth_disabled,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 16),
+                  Text(
+                    _isScanning ? "Scanning in Progress..." :
+                    _adapterState == BluetoothAdapterState.on ? "Bluetooth Ready" : "Bluetooth OFF",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: _isScanning ? Theme.of(context).colorScheme.primary : (_adapterState == BluetoothAdapterState.on ? Colors.green.shade800 : Colors.red.shade800),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _isScanning ? "Looking for FMC devices." :
+                _adapterState == BluetoothAdapterState.on ? "Pull down to scan or tap the button below." : "Please enable Bluetooth in your device settings.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade700),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNetworkStatusCard(BuildContext context) {
+    IconData icon;
+    Color color;
+    String title;
+    String subtitle;
+
+    if (_networkStatus == 'Connected') {
+      icon = Icons.signal_cellular_alt;
+      color = Colors.green.shade50;
+      title = 'Network Connected';
+      subtitle = 'Type: $_networkType';
+    } else {
+      icon = Icons.signal_cellular_off;
+      color = Colors.red.shade50;
+      title = 'Network Disconnected';
+      subtitle = 'Status: $_networkStatus';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Card(
+        color: color,
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: Theme.of(context).colorScheme.primary, size: 28),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: _networkStatus == 'Connected' ? Colors.green.shade800 : Colors.red.shade800,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeviceList() {
+    print("REAL: _buildDeviceList called.");
     final fmcResults = _scanResults
         .where((r) => r.device.platformName.isNotEmpty && r.device.platformName.startsWith("FMC"))
         .toList();
 
-    print("LOG: _buildResultsView - _scanResults count: ${_scanResults.length}");
-    print("LOG: _buildResultsView - fmcResults count: ${fmcResults.length}");
+    print("REAL: _buildDeviceList - _scanResults count: ${_scanResults.length}");
+    print("REAL: _buildDeviceList - fmcResults count: ${fmcResults.length}");
     if (fmcResults.isNotEmpty) {
-      print("LOG: _buildResultsView - First FMC device: ${fmcResults.first.device.platformName}");
+      print("REAL: _buildDeviceList - First FMC device: ${fmcResults.first.device.platformName}");
     }
 
+    if (_adapterState != BluetoothAdapterState.on) {
+      print("REAL: _buildDeviceList - Bluetooth OFF message.");
+      return _buildNoDeviceMessage(
+        icon: Icons.bluetooth_disabled,
+        message: "Bluetooth is OFF",
+        subMessage: "Please turn on Bluetooth in your device settings.",
+        iconColor: Colors.red.shade400,
+        messageColor: Colors.red,
+      );
+    }
 
     if (_isScanning && fmcResults.isEmpty) {
-      print("LOG: _buildResultsView - Showing 'Scanning...' message.");
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(48.0),
-          child: Text("Scanning...", style: TextStyle(fontSize: 18, color: Colors.grey)),
+      print("REAL: _buildDeviceList - Showing 'Searching...' message.");
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: Colors.indigo),
+            SizedBox(height: 16),
+            Text("Searching for FMC devices...", style: TextStyle(fontSize: 18, color: Colors.grey.shade600)),
+          ],
         ),
       );
     }
+
     if (!_isScanning && fmcResults.isEmpty) {
-      print("LOG: _buildResultsView - Showing 'No device' message.");
-      return _buildNoDeviceMessage();
+      print("REAL: _buildDeviceList - Showing 'No device' message.");
+      return _buildNoDeviceMessage(
+        icon: Icons.bluetooth,
+        message: "No FMC Devices Found",
+        subMessage: "Pull down to scan again.",
+        iconColor: Colors.grey.shade400,
+        messageColor: Colors.black,
+      );
     }
 
-    print("LOG: _buildResultsView - Building SIMPLE COLORED ListView with ${fmcResults.length} items.");
+    print("REAL: _buildDeviceList - Building ListView with ${fmcResults.length} items.");
     return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
       itemCount: fmcResults.length,
       itemBuilder: (context, index) {
         final result = fmcResults[index];
-        print("LOG: Building a simple colored Container for device: ${result.device.platformName}");
-        return Container(
-          margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-          padding: const EdgeInsets.all(15),
-          color: Colors.deepOrange.shade100, 
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "NAMA: ${result.device.platformName.isNotEmpty ? result.device.platformName : "Unknown Device"}",
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
+        print("REAL: Building device card for: ${result.device.platformName}");
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          color: Colors.white,
+          child: InkWell(
+            onTap: () => connectToDevice(result.device),
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  _buildRssiIcon(result.rssi),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          result.device.platformName.isNotEmpty ? result.device.platformName : "Unknown Device",
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black87),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "ID: ${result.device.remoteId.str}",
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                        ),
+                        Text(
+                          "RSSI: ${result.rssi} dBm",
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.arrow_forward_ios, size: 18, color: Colors.grey.shade400),
+                ],
               ),
-              Text(
-                "ID: ${result.device.remoteId.str}",
-                style: const TextStyle(fontSize: 12, color: Colors.black87),
-              ),
-              Text(
-                "RSSI: ${result.rssi}",
-                style: const TextStyle(fontSize: 12, color: Colors.black87),
-              ),
-              ElevatedButton(
-                onPressed: () => connectToDevice(result.device),
-                child: const Text("Connect"),
-              ),
-            ],
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildNoDeviceMessage() {
-    print("LOG: _buildNoDeviceMessage called. Adapter state: $_adapterState");
-    if (_adapterState != BluetoothAdapterState.on) {
-      return Container(
-        padding: const EdgeInsets.all(48.0),
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.bluetooth_disabled, size: 80, color: Colors.red.shade400),
-            const SizedBox(height: 20),
-            const Text("Bluetooth is OFF", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red)),
-            const SizedBox(height: 10),
-            Text("Please turn on Bluetooth in your device settings to scan for devices.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
-          ],
-        ),
-      );
+  Widget _buildRssiIcon(int rssi) {
+    IconData iconData;
+    Color iconColor;
+    if (rssi > -65) {
+      iconData = Icons.signal_wifi_4_bar_rounded;
+      iconColor = Colors.green;
+    } else if (rssi > -80) {
+      iconData = Icons.network_wifi_3_bar_rounded;
+      iconColor = Colors.orange;
+    } else if (rssi > -95) {
+      iconData = Icons.wifi_2_bar;
+      iconColor = Colors.red.shade300;
+    } else {
+      iconData = Icons.wifi_1_bar;
+      iconColor = Colors.red.shade700;
     }
-    return Container(
-      padding: const EdgeInsets.all(48.0),
-      alignment: Alignment.center,
+    return Icon(iconData, color: iconColor, size: 36);
+  }
+
+  Widget _buildNoDeviceMessage({
+    required IconData icon,
+    required String message,
+    required String subMessage,
+    required Color iconColor,
+    required Color messageColor,
+  }) {
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.bluetooth_disabled, size: 80, color: Colors.grey.shade400),
+          Icon(icon, size: 80, color: iconColor),
           const SizedBox(height: 20),
-          const Text("No FMC Devices Found", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: messageColor),
+          ),
           const SizedBox(height: 10),
-          Text("Pull down to scan again.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+          Text(
+            subMessage,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
         ],
       ),
     );
