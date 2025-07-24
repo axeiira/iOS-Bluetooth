@@ -18,7 +18,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'telemetry.db');
     return await openDatabase(
       path,
-      version: 2, 
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -29,7 +29,6 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE gps_data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        company TEXT NOT NULL,
         device_id TEXT NOT NULL,
         timestamp TEXT NOT NULL,
         latitude REAL NOT NULL,
@@ -37,14 +36,15 @@ class DatabaseHelper {
         altitude REAL NOT NULL,
         num_satellite INTEGER NOT NULL,
         battery_percentage INTEGER NOT NULL,
-        tag_button INTEGER NOT NULL, -- SQLite tidak punya boolean, gunakan INTEGER (0=false, 1=true)
-        geofence_status INTEGER NOT NULL, -- Atribut baru (0=false, 1=1)
+        tag_button INTEGER NOT NULL,
+        geofence_status INTEGER NOT NULL,
         is_synced INTEGER NOT NULL DEFAULT 0
       )
     ''');
-    print("REAL: Database table 'gps_data' created.");
+    print("REAL: Database table 'gps_data' created with new schema.");
   }
 
+  // onUpgrade akan menghapus tabel lama dan membuat yang baru
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     print("REAL: Upgrading database from version $oldVersion to $newVersion.");
     await db.execute("DROP TABLE IF EXISTS gps_data");
