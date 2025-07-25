@@ -1,35 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'pages/main_screen.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const GeoTrack());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class GeoTrack extends StatelessWidget {
+  const GeoTrack({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'IoT Data Collector',
+      title: 'GeoTrack Pro',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.indigo,
+          primary: Colors.indigo.shade700,
+          secondary: Colors.cyan.shade600,
+          background: const Color(0xFFF5F7FA),
+        ),
         useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFFF5F7FA),
+        textTheme: GoogleFonts.poppinsTextTheme(Theme.of(context).textTheme),
         cardTheme: CardThemeData(
           elevation: 2,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size.fromHeight(50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          )
-        )
       ),
       home: const MainScreen(),
     );

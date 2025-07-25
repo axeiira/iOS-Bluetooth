@@ -1,5 +1,5 @@
-name: flutter_application_1
-description: "A new Flutter project."
+name: cek
+description: "An IoT data collector application for agricultural industry needs."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 2.0.0+1
 
 environment:
   sdk: ^3.8.1
@@ -39,10 +39,13 @@ dependencies:
   path: ^1.8.3
   http: ^1.1.0
   flutter_blue_plus: ^1.17.1
-  intl: ^0.19.0
+  intl: ^0.20.2
   connectivity_plus: ^6.0.0
   flutter_map: ^6.1.0
   latlong2: ^0.9.0
+  google_fonts: ^6.2.1
+  table_calendar: ^3.2.0
+  percent_indicator: ^4.2.5
 
 
 dev_dependencies:
@@ -66,6 +69,8 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - assets/images/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

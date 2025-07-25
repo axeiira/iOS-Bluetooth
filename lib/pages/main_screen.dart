@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'home_page.dart';
-import 'data_log_page.dart';
-import 'sync_page.dart';
+import 'dashboard_page.dart';
+import 'scan_page.dart';
+import 'history_page.dart';
+import 'settings_page.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -13,7 +14,21 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  final GlobalKey<DataLogPageState> _dataLogPageKey = GlobalKey<DataLogPageState>();
+  // GlobalKey untuk merefresh halaman riwayat
+  final GlobalKey<HistoryPageState> _historyPageKey = GlobalKey<HistoryPageState>();
+
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = <Widget>[
+      const DashboardPage(),
+      ScanPage(navigateToTab: _navigateToTab), // Kirim fungsi navigasi
+      HistoryPage(key: _historyPageKey),
+      const SettingsPage(),
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -21,49 +36,50 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  // untuk berpindah tab dan me-refresh DataLogPage
-  void _navigateToTabAndRefresh(int index) {
+  // Fungsi untuk berpindah tab dan merefresh halaman riwayat
+  void _navigateToTab(int index) {
+    if (index == 2) { // Index 2: HistoryPage
+      _historyPageKey.currentState?.refreshData();
+    }
     setState(() {
       _selectedIndex = index;
     });
-    if (index == 1) {
-      _dataLogPageKey.currentState?.refreshData();
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> widgetOptions = <Widget>[
-      HomePage(onSyncComplete: () => _navigateToTabAndRefresh(1)),
-      DataLogPage(key: _dataLogPageKey),
-      const SyncPage(),
-    ];
-
     return Scaffold(
-      body: Center(
-        child: widgetOptions.elementAt(_selectedIndex),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _pages,
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bluetooth_searching),
+      bottomNavigationBar: NavigationBar(
+        onDestinationSelected: _onItemTapped,
+        selectedIndex: _selectedIndex,
+        indicatorColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        destinations: const <Widget>[
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            selectedIcon: Icon(Icons.dashboard),
+            label: 'Dashboard',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.bluetooth_searching_outlined),
+            selectedIcon: Icon(Icons.bluetooth_searching),
             label: 'Scan',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.storage_rounded),
-            label: 'Data Log',
+          NavigationDestination(
+            icon: Icon(Icons.history_outlined),
+            selectedIcon: Icon(Icons.history),
+            label: 'History',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.sync_rounded),
-            label: 'Sync',
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings),
+            label: 'Settings',
           ),
         ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Theme.of(context).colorScheme.primary,
-        unselectedItemColor: Colors.grey,
-        backgroundColor: Colors.white,
-        type: BottomNavigationBarType.fixed,
-        onTap: _onItemTapped,
       ),
     );
   }
