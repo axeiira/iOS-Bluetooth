@@ -12,7 +12,7 @@ class GeoTrack extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'GeoTrack Pro',
+      title: 'GeoTrack',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
