@@ -133,9 +133,13 @@ class DatabaseHelper {
   }
 
   // Mengambil semua data GPS dari SQLite (untuk log)
-  Future<List<Map<String, dynamic>>> getAllGpsData() async {
+  Future<List<Map<String, dynamic>>> getAllGpsData({int? limit}) async { 
     Database db = await instance.database;
-    final data = await db.query('gps_data', orderBy: 'timestamp DESC');
+    final data = await db.query(
+      'gps_data', 
+      orderBy: 'timestamp DESC',
+      limit: limit,
+    );
     print("REAL: Fetched ${data.length} all GPS data records.");
     return data;
   }
