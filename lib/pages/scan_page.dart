@@ -1,3 +1,4 @@
+// lib/pages/scan_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'device_page.dart';
@@ -43,13 +44,12 @@ class _ScanPageState extends State<ScanPage> {
 
   void _connectToDevice(BluetoothDevice device) async {
     await FlutterBluePlus.stopScan();
-    // Tampilkan dialog loading
     showDialog(context: context, builder: (context) => const Center(child: CircularProgressIndicator()));
 
     try {
       await device.connect(timeout: const Duration(seconds: 15));
       if (!mounted) return;
-      Navigator.pop(context); // Tutup dialog loading
+      Navigator.pop(context);
 
       final bool syncCompleted = await Navigator.push(
         context,
@@ -71,17 +71,23 @@ class _ScanPageState extends State<ScanPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Scan Devices"),
-        actions: [
-          IconButton(
-            icon: Icon(_isScanning ? Icons.stop_circle_outlined : Icons.replay_circle_filled_outlined),
-            onPressed: _isScanning ? () => FlutterBluePlus.stopScan() : _startScan,
-            tooltip: _isScanning ? "Stop Scan" : "Rescan",
-          ),
-        ],
       ),
       body: RefreshIndicator(
         onRefresh: _startScan,
         child: _buildDeviceList(),
+      ),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: FloatingActionButton(
+          onPressed: _isScanning ? () => FlutterBluePlus.stopScan() : _startScan,
+          backgroundColor: _isScanning ? Colors.red.shade700 : Theme.of(context).colorScheme.primary,
+          foregroundColor: Colors.white,
+          tooltip: _isScanning ? 'Stop Scan' : 'Scan Devices',
+          shape: const CircleBorder(),
+          child: Icon(
+            _isScanning ? Icons.stop : Icons.search,
+          ),
+        ),
       ),
     );
   }
@@ -108,7 +114,7 @@ class _ScanPageState extends State<ScanPage> {
                 const SizedBox(height: 20),
                 const Text("No Devices Found", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
-                Text("Pull down to refresh or tap the icon above.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+                Text("Tap the scan button to start.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
               ],
             ),
           ),
@@ -123,7 +129,7 @@ class _ScanPageState extends State<ScanPage> {
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           child: ListTile(
-            leading: CircleAvatar(child: Icon(Icons.bluetooth)),
+            leading: const CircleAvatar(child: Icon(Icons.bluetooth)),
             title: Text(result.device.platformName),
             subtitle: Text(result.device.remoteId.str),
             trailing: Text("${result.rssi} dBm"),

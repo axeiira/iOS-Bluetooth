@@ -1,6 +1,21 @@
-// lib/pages/dashboard_page.dart
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../utils/database_helper.dart';
+import 'sync_page.dart';
+
+class ActivityLog {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String time;
+
+  ActivityLog({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.time,
+  });
+}
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -12,11 +27,18 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   int _unsyncedCount = 0;
   int _totalCount = 0;
+  List<ActivityLog> _recentActivities = [];
 
   @override
   void initState() {
     super.initState();
-    _loadDataSummary();
+    _refreshData();
+  }
+
+  // Fungsi untuk memuat semua data dashboard
+  Future<void> _refreshData() async {
+    await _loadDataSummary();
+    await _loadRecentActivities();
   }
 
   Future<void> _loadDataSummary() async {
@@ -27,6 +49,41 @@ class _DashboardPageState extends State<DashboardPage> {
         _unsyncedCount = unsynced;
         _totalCount = allData.length;
       });
+    }
+  }
+
+  Future<void> _loadRecentActivities() async {
+    final recentRecords = await DatabaseHelper.instance.getAllGpsData(limit: 5); 
+    if (mounted) {
+      setState(() {
+        _recentActivities = recentRecords.map((record) {
+          return ActivityLog(
+            icon: Icons.add_location_alt_outlined,
+            iconColor: Colors.blue.shade700,
+            title: "${record['device_id']} - Data Received",
+            time: _formatTimeAgo(DateTime.parse(record['timestamp'])),
+          );
+        }).toList();
+      });
+    }
+  }
+  
+  String _formatTimeAgo(DateTime dateTime) {
+    final duration = DateTime.now().difference(dateTime);
+    if (duration.inDays > 1) {
+      return '${duration.inDays} days ago';
+    } else if (duration.inDays == 1) {
+      return '1 day ago';
+    } else if (duration.inHours > 1) {
+      return '${duration.inHours} hours ago';
+    } else if (duration.inHours == 1) {
+      return '1 hour ago';
+    } else if (duration.inMinutes > 1) {
+      return '${duration.inMinutes} minutes ago';
+    } else if (duration.inMinutes == 1) {
+      return '1 minute ago';
+    } else {
+      return 'Just now';
     }
   }
 
@@ -46,7 +103,7 @@ class _DashboardPageState extends State<DashboardPage> {
         elevation: 0,
       ),
       body: RefreshIndicator(
-        onRefresh: _loadDataSummary,
+        onRefresh: _refreshData,
         child: ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
@@ -57,7 +114,7 @@ class _DashboardPageState extends State<DashboardPage> {
             const SizedBox(height: 24),
             Text("Recent Activity", style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            _buildRecentActivityPlaceholder(),
+            _buildRecentActivityList(),
           ],
         ),
       ),
@@ -75,7 +132,13 @@ class _DashboardPageState extends State<DashboardPage> {
           children: [
             _buildStatusMetric("Total Records", _totalCount.toString(), Colors.white),
             Container(width: 1, height: 50, color: Colors.white.withOpacity(0.5)),
-            _buildStatusMetric("Unsynced", _unsyncedCount.toString(), Colors.white, isWarning: _unsyncedCount > 0),
+            InkWell(
+              onTap: () async {
+                await Navigator.push(context, MaterialPageRoute(builder: (context) => const SyncPage()));
+                _refreshData(); // Refresh data setelah kembali dari SyncPage
+              },
+              child: _buildStatusMetric("Unsynced", _unsyncedCount.toString(), Colors.white, isWarning: _unsyncedCount > 0),
+            ),
           ],
         ),
       ),
@@ -85,10 +148,7 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget _buildStatusMetric(String title, String value, Color color, {bool isWarning = false}) {
     return Column(
       children: [
-        Text(
-          value,
-          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: color),
-        ),
+        Text(value, style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: color)),
         const SizedBox(height: 4),
         Row(
           children: [
@@ -97,38 +157,40 @@ class _DashboardPageState extends State<DashboardPage> {
                 padding: const EdgeInsets.only(right: 4.0),
                 child: Icon(Icons.warning_amber_rounded, color: Colors.yellow.shade600, size: 16),
               ),
-            Text(
-              title,
-              style: TextStyle(fontSize: 14, color: color.withOpacity(0.8)),
-            ),
+            Text(title, style: TextStyle(fontSize: 14, color: color.withOpacity(0.8))),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildRecentActivityPlaceholder() {
+  Widget _buildRecentActivityList() {
+    if (_recentActivities.isEmpty) {
+      return const Card(
+        child: ListTile(
+          leading: CircleAvatar(child: Icon(Icons.info_outline)),
+          title: Text("No Recent Activity"),
+          subtitle: Text("Data received from devices will appear here."),
+        ),
+      );
+    }
     return Card(
-      child: Column(
-        children: [
-          ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.add_location_alt)),
-            title: const Text("GPS-001 - Data Received"),
-            subtitle: Text("10 minutes ago"),
-          ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
-          ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.add_location_alt)),
-            title: const Text("GPS-002 - Data Received"),
-            subtitle: Text("12 minutes ago"),
-          ),
-           const Divider(height: 1, indent: 16, endIndent: 16),
-          ListTile(
-            leading: CircleAvatar(backgroundColor: Colors.green.shade100, child: const Icon(Icons.cloud_done, color: Colors.green)),
-            title: const Text("Sync Completed"),
-            subtitle: Text("1 hour ago"),
-          ),
-        ],
+      child: ListView.separated(
+        physics: const NeverScrollableScrollPhysics(),
+        shrinkWrap: true,
+        itemCount: _recentActivities.length,
+        itemBuilder: (context, index) {
+          final activity = _recentActivities[index];
+          return ListTile(
+            leading: CircleAvatar(
+              backgroundColor: activity.iconColor.withOpacity(0.1),
+              child: Icon(activity.icon, color: activity.iconColor),
+            ),
+            title: Text(activity.title),
+            subtitle: Text(activity.time),
+          );
+        },
+        separatorBuilder: (context, index) => const Divider(height: 1, indent: 16, endIndent: 16),
       ),
     );
   }
