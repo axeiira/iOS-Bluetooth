@@ -13,11 +13,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  static const List<Widget> _widgetOptions = <Widget>[
-    HomePage(),
-    DataLogPage(),
-    SyncPage(),
-  ];
+  final GlobalKey<DataLogPageState> _dataLogPageKey = GlobalKey<DataLogPageState>();
 
   void _onItemTapped(int index) {
     setState(() {
@@ -25,11 +21,27 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  // untuk berpindah tab dan me-refresh DataLogPage
+  void _navigateToTabAndRefresh(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+    if (index == 1) {
+      _dataLogPageKey.currentState?.refreshData();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final List<Widget> widgetOptions = <Widget>[
+      HomePage(onSyncComplete: () => _navigateToTabAndRefresh(1)),
+      DataLogPage(key: _dataLogPageKey),
+      const SyncPage(),
+    ];
+
     return Scaffold(
       body: Center(
-        child: _widgetOptions.elementAt(_selectedIndex),
+        child: widgetOptions.elementAt(_selectedIndex),
       ),
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[

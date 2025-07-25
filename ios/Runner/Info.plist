@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>We need bluetooth to find and connect to your FMC device.</string>
+	<string>We need bluetooth to find and connect to your GPS device.</string>
 	<key>NSBluetoothScanUsageDescription</key>
-	<string>We need bluetooth to scan for nearby FMC devices.</string>
+	<string>We need bluetooth to scan for nearby GPS devices.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>We need bluetooth to find and connect to your FMC device.</string>
+	<string>We need bluetooth to find and connect to your GPS device.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
