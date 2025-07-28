@@ -8,19 +8,11 @@ class SendResult {
 }
 
 class HttpManager {
-  // sesuaikan url
-  // final String _baseUrl = "http://localhost:5216/api/telemetry"; // Untuk simulator 
-  final String _baseUrl = "http://192.168.17.211:5000/telemetry"; // untuk di hp
-
-  // Ganti URL ini dengan URL endpoint notifikasi dashboard Anda yang sebenarnya!
-  final String _notificationUrl = "http://192.168.17.211:5000/notification"; // Untuk notifikasi dashboard
+  final String _baseUrl = "http://192.168.17.210:6432/api/telemetry";
+  final String _notificationUrl = "http://192.168.17.211:5000/notification";
 
   Future<SendResult> sendData(Map<String, dynamic> telemetryData) async {
     try {
-      if (telemetryData.containsKey('tag_button') && telemetryData['tag_button'] is bool) {
-        telemetryData['tag_button'] = telemetryData['tag_button'] ? 1 : 0;
-      }
-
       String jsonData = jsonEncode(telemetryData);
       print("===================================");
       print("REAL: Mengirim JSON ke Server...");
@@ -33,10 +25,10 @@ class HttpManager {
         headers: <String, String>{
           'Content-Type': 'application/json; charset=UTF-8',
         },
-        body: jsonEncode(telemetryData),
-      ).timeout(const Duration(seconds: 10)); // Timeout 
+        body: jsonData,
+      ).timeout(const Duration(seconds: 10));
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         print("REAL: Data berhasil dikirim. Server response: ${response.body}");
         return SendResult(success: true, message: "Data berhasil dikirim.");
       } else {
@@ -55,41 +47,12 @@ class HttpManager {
     }
   }
 
-  // Fungsi untuk mengirim notifikasi ke dashboard
   Future<void> sendNotificationToDashboard({
     required String deviceId,
     required int totalRecordsSent,
     required String status,
     String? errorMessage,
   }) async {
-    final payload = {
-      'device_id': deviceId,
-      'total_records_sent': totalRecordsSent,
-      'status': status, // e.g., "success", "failed", "resend"
-      'error_message': errorMessage,
-      'timestamp': DateTime.now().toIso8601String(),
-    };
-
-    try {
-      print("REAL: Mengirim notifikasi ke dashboard...");
-      print("REAL: URL Notifikasi: $_notificationUrl");
-      print("REAL: Payload Notifikasi: ${jsonEncode(payload)}");
-
-      final response = await http.post(
-        Uri.parse(_notificationUrl),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 5));
-
-      if (response.statusCode == 200) {
-        print("REAL: Notifikasi dashboard berhasil dikirim.");
-      } else {
-        print("REAL: Gagal mengirim notifikasi dashboard. Status: ${response.statusCode}, Body: ${response.body}");
-      }
-    } catch (e) {
-      print("REAL: Error jaringan saat mengirim notifikasi dashboard: $e");
-    }
+    // TODO
   }
 }
