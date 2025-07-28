@@ -1,12 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../utils/database_helper.dart';
 
 class DevicePage extends StatefulWidget {
-  final BluetoothDevice device;
-  const DevicePage({super.key, required this.device});
+  final BluetoothDevice? device;
+  final bool isSimulation;
+
+  const DevicePage({super.key, this.device, this.isSimulation = false})
+      : assert(device != null || isSimulation, 'Device must be provided if not in simulation mode');
 
   @override
   State<DevicePage> createState() => _DevicePageState();
@@ -18,10 +23,10 @@ class _DevicePageState extends State<DevicePage> {
 
   StreamSubscription<BluetoothConnectionState>? _stateSubscription;
   StreamSubscription<List<int>>? _dataSubscription;
+  Timer? _simulationTimer;
 
   BluetoothConnectionState _connectionState = BluetoothConnectionState.connecting;
-  
-  String _syncStatusMessage = "Connecting to device...";
+  String _syncStatusMessage = "Initializing...";
   int _recordsReceivedCount = 0;
   bool _isSyncing = false;
   bool _syncCompleted = false;
@@ -29,25 +34,69 @@ class _DevicePageState extends State<DevicePage> {
   @override
   void initState() {
     super.initState();
-    _stateSubscription = widget.device.connectionState.listen((state) {
-      if (mounted) {
-        setState(() => _connectionState = state);
-        if (state == BluetoothConnectionState.connected) {
-          _discoverServicesAndInitiateSync();
+    if (widget.isSimulation) {
+      _startSimulation();
+    } else {
+      _stateSubscription = widget.device!.connectionState.listen((state) {
+        if (mounted) {
+          setState(() => _connectionState = state);
+          if (state == BluetoothConnectionState.connected) {
+            _discoverServicesAndInitiateSync();
+          }
         }
-      }
-    });
+      });
+    }
   }
 
   @override
   void dispose() {
     _stateSubscription?.cancel();
     _dataSubscription?.cancel();
+    _simulationTimer?.cancel();
     super.dispose();
   }
 
+  void _startSimulation() {
+    setState(() {
+      _connectionState = BluetoothConnectionState.connected;
+      _isSyncing = true;
+      _syncCompleted = false;
+      _recordsReceivedCount = 0;
+      _syncStatusMessage = "Running Simulation...";
+    });
+
+    _simulationTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      final random = Random();
+      final lat = -6.2 + (random.nextDouble() * 0.1);
+      final lon = 106.8 + (random.nextDouble() * 0.1);
+      final alt = 50.0 + (random.nextDouble() * 50.0);
+
+      final fakeJson = {
+        "device_id": "SIM-DEVICE-01",
+        "created_at": DateTime.now().toIso8601String(),
+        "latitude": lat,
+        "longitude": lon,
+        "altitude": alt,
+        "n_satellite": 8 + random.nextInt(5),
+        "battery_percentage": 70 + random.nextInt(31),
+        "event_tagging": random.nextBool(),
+        "geofence_status": random.nextBool(),
+      };
+      
+      _onDataReceived(utf8.encode(jsonEncode(fakeJson)));
+      
+      if (_recordsReceivedCount >= 10) {
+        timer.cancel();
+        _onDataReceived(utf8.encode("END:10"));
+      }
+    });
+  }
+
   Future<void> _disconnectAndPop() async {
-    await widget.device.disconnect();
+    _simulationTimer?.cancel();
+    if (widget.device != null && widget.device!.isConnected) {
+        await widget.device!.disconnect();
+    }
     if (mounted) {
       Navigator.of(context).pop(_syncCompleted);
     }
@@ -55,18 +104,15 @@ class _DevicePageState extends State<DevicePage> {
 
   void _discoverServicesAndInitiateSync() async {
     if (_isSyncing) return;
-
     setState(() {
       _isSyncing = true;
       _syncCompleted = false;
       _recordsReceivedCount = 0;
       _syncStatusMessage = "Discovering services...";
     });
-
     try {
-      List<BluetoothService> services = await widget.device.discoverServices();
+      List<BluetoothService> services = await widget.device!.discoverServices();
       BluetoothCharacteristic? targetCharacteristic;
-
       for (BluetoothService service in services) {
         if (service.uuid.str.toLowerCase() == serviceUuid) {
           for (BluetoothCharacteristic characteristic in service.characteristics) {
@@ -78,7 +124,6 @@ class _DevicePageState extends State<DevicePage> {
         }
         if (targetCharacteristic != null) break;
       }
-
       if (targetCharacteristic != null) {
         await targetCharacteristic.setNotifyValue(true);
         _dataSubscription = targetCharacteristic.value.listen(_onDataReceived, onError: (e) {
@@ -87,10 +132,8 @@ class _DevicePageState extends State<DevicePage> {
               _syncStatusMessage = "Error on data stream: $e";
             });
         });
-        
         setState(() => _syncStatusMessage = "Sending 'READY' command...");
         await targetCharacteristic.write(utf8.encode("READY"), withoutResponse: true);
-
       } else {
         setState(() {
           _isSyncing = false;
@@ -113,6 +156,7 @@ class _DevicePageState extends State<DevicePage> {
       
       if (!dataString.startsWith('{') || !dataString.endsWith('}')) {
         if (dataString.startsWith("END:")) {
+          HapticFeedback.mediumImpact();
           setState(() {
             _isSyncing = false;
             _syncCompleted = true;
@@ -143,7 +187,9 @@ class _DevicePageState extends State<DevicePage> {
       if (mounted) {
         setState(() {
           _recordsReceivedCount++;
-          _syncStatusMessage = "Receiving Data...";
+          if (_isSyncing) {
+            _syncStatusMessage = "Receiving Data...";
+          }
         });
       }
     } catch (e) {
@@ -156,11 +202,13 @@ class _DevicePageState extends State<DevicePage> {
     return WillPopScope(
       onWillPop: () async {
         await _disconnectAndPop();
-        return false; // Mencegah pop otomatis, karena kita sudah handle manual
+        return false;
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(widget.device.platformName.isNotEmpty ? widget.device.platformName : "Device Sync"),
+          title: Text(widget.isSimulation 
+            ? "Device Simulation" 
+            : widget.device?.platformName ?? "Device Sync"),
           centerTitle: true,
           elevation: 0,
           backgroundColor: Colors.indigo,
@@ -170,20 +218,19 @@ class _DevicePageState extends State<DevicePage> {
             onPressed: _disconnectAndPop,
           ),
         ),
-        body: _buildContentView(_connectionState),
+        body: _buildContentView(),
       ),
     );
   }
 
-  Widget _buildContentView(BluetoothConnectionState connectionState) {
-    switch (connectionState) {
-      case BluetoothConnectionState.connected:
-        return _buildSyncView();
-      case BluetoothConnectionState.disconnected:
-        return _buildDisconnectedView();
-      default:
-        return _buildConnectingView();
+  Widget _buildContentView() {
+    if (_connectionState == BluetoothConnectionState.disconnected && !widget.isSimulation) {
+      return _buildDisconnectedView();
     }
+    if (_connectionState == BluetoothConnectionState.connecting && !widget.isSimulation) {
+      return _buildConnectingView();
+    }
+    return _buildSyncView();
   }
   
   Widget _buildSyncView() {
@@ -229,17 +276,11 @@ class _DevicePageState extends State<DevicePage> {
               ),
             ),
             const SizedBox(height: 32),
-            if (_syncCompleted)
+            if (!_isSyncing)
               ElevatedButton.icon(
                   icon: const Icon(Icons.arrow_back),
-                  label: const Text("Back to Scan Page"),
+                  label: const Text("Finish & Go Back"),
                   onPressed: _disconnectAndPop,
-              )
-            else if (!_isSyncing)
-              ElevatedButton.icon(
-                  icon: const Icon(Icons.sync),
-                  label: const Text("Resync Data"),
-                  onPressed: _discoverServicesAndInitiateSync,
               )
           ],
         ),
