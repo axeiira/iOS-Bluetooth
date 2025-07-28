@@ -41,14 +41,9 @@ class _SyncPageState extends State<SyncPage> {
       _syncProgress = 0.0;
     });
 
-    int totalRecordsSent = 0;
-    int totalRecordsToSync = 0;
-
-    for (var summary in _unsyncedSummaries) {
-      totalRecordsToSync += summary['total_unsynced'] as int;
-    }
-
-    if (totalRecordsToSync == 0) {
+    final allUnsyncedData = await DatabaseHelper.instance.getUnsyncedGpsData();
+    
+    if (allUnsyncedData.isEmpty) {
       setState(() {
         _isSyncing = false;
         _statusMessage = "All data is already synced!";
@@ -56,24 +51,25 @@ class _SyncPageState extends State<SyncPage> {
       });
       return;
     }
-
-    final allUnsyncedData = await DatabaseHelper.instance.getUnsyncedGpsData();
+    
+    int totalRecordsSent = 0;
+    final int totalRecordsToSync = allUnsyncedData.length;
 
     for (var data in allUnsyncedData) {
-      final Map<String, dynamic> payload = Map.from(data);
-      final int id = payload['id'];
+      final Map<String, dynamic> payload = {
+        // Server mengharapkan nama key ini
+        'deviceId': data['device_id'],
+        'latitude': data['latitude'],
+        'longitude': data['longitude'],
+        'altitude': data['altitude'],
+        'createdAt': data['timestamp'],
+        'nSatellite': data['num_satellite'],
+        'batteryPercentage': data['battery_percentage'],
+        'eventTagging': data['tag_button'] == 1, 
+        'geofenceStatus': data['geofence_status'] == 1,
+      };
       
-      payload.remove('id');
-      payload.remove('is_synced');
-
-      // Konversi boolean ke integer untuk tag_button dan geofence_status saat mengirim ke server
-      if (payload.containsKey('tag_button') && payload['tag_button'] is bool) {
-        payload['tag_button'] = payload['tag_button'] ? 1 : 0;
-      }
-      if (payload.containsKey('geofence_status') && payload['geofence_status'] is bool) {
-        payload['geofence_status'] = payload['geofence_status'] ? 1 : 0;
-      }
-
+      final int id = data['id'];
 
       setState(() {
         _statusMessage = "Sending data for ${data['device_id']} (ID: $id)...";
@@ -103,12 +99,11 @@ class _SyncPageState extends State<SyncPage> {
       errorMessage: finalErrorMessage,
     );
 
-
     setState(() {
       _isSyncing = false;
-      _statusMessage = "Sync complete. $totalRecordsSent records were sent successfully.";
+      _statusMessage = "Sync complete. $totalRecordsSent of $totalRecordsToSync records sent successfully.";
       _currentJsonPayload = "";
-      _statusColor = Colors.green;
+      _statusColor = totalRecordsSent == totalRecordsToSync ? Colors.green : Colors.orange;
       _syncProgress = 1.0;
     });
     _checkUnsyncedData();
