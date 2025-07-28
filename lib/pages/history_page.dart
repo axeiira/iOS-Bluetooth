@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../utils/database_helper.dart';
 import 'map_view_page.dart';
@@ -16,7 +17,8 @@ class HistoryPageState extends State<HistoryPage> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   List<Map<String, dynamic>> _selectedDayEvents = [];
-  
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
@@ -29,6 +31,9 @@ class HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _loadDataForCalendar() async {
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(milliseconds: 750)); 
+    
     final allData = await DatabaseHelper.instance.getAllGpsData();
     final Map<DateTime, List<Map<String, dynamic>>> eventSource = {};
 
@@ -44,7 +49,8 @@ class HistoryPageState extends State<HistoryPage> {
     if (mounted) {
       setState(() {
         _events = eventSource;
-        _onDaySelected(_selectedDay!, _focusedDay); // Refresh events for selected day
+        _onDaySelected(_selectedDay!, _focusedDay);
+        _isLoading = false;
       });
     }
   }
@@ -65,33 +71,70 @@ class HistoryPageState extends State<HistoryPage> {
       appBar: AppBar(
         title: const Text("Data History"),
       ),
-      body: Column(
+      body: _isLoading 
+        ? _buildLoadingSkeleton() 
+        : Column(
+            children: [
+              Card(
+                margin: const EdgeInsets.all(12),
+                child: TableCalendar(
+                  firstDay: DateTime.utc(2020, 1, 1),
+                  lastDay: DateTime.now().add(const Duration(days: 365)),
+                  focusedDay: _focusedDay,
+                  selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                  onDaySelected: _onDaySelected,
+                  eventLoader: (day) => _events[DateTime(day.year, day.month, day.day)] ?? [],
+                  calendarStyle: const CalendarStyle(
+                    todayDecoration: BoxDecoration(color: Colors.indigoAccent, shape: BoxShape.circle),
+                    selectedDecoration: BoxDecoration(color: Colors.indigo, shape: BoxShape.circle),
+                  ),
+                  headerStyle: const HeaderStyle(
+                    formatButtonVisible: false,
+                    titleCentered: true,
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.0),
+                child: Divider(),
+              ),
+              Expanded(
+                child: _buildEventList(),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: ListView(
+        padding: const EdgeInsets.all(12.0),
         children: [
-          Card(
-            margin: const EdgeInsets.all(12),
-            child: TableCalendar(
-              firstDay: DateTime.utc(2020, 1, 1),
-              lastDay: DateTime.now().add(const Duration(days: 365)),
-              focusedDay: _focusedDay,
-              selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-              onDaySelected: _onDaySelected,
-              eventLoader: (day) => _events[DateTime(day.year, day.month, day.day)] ?? [],
-              calendarStyle: const CalendarStyle(
-                todayDecoration: BoxDecoration(color: Colors.indigoAccent, shape: BoxShape.circle),
-                selectedDecoration: BoxDecoration(color: Colors.indigo, shape: BoxShape.circle),
-              ),
-              headerStyle: const HeaderStyle(
-                formatButtonVisible: false,
-                titleCentered: true,
-              ),
+          Container(
+            height: 400,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0),
-            child: Divider(),
+          const SizedBox(height: 24),
+          Container(
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
-          Expanded(
-            child: _buildEventList(),
+           const SizedBox(height: 12),
+           Container(
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         ],
       ),
@@ -102,8 +145,6 @@ class HistoryPageState extends State<HistoryPage> {
     if (_selectedDayEvents.isEmpty) {
       return const Center(child: Text("No data for this day."));
     }
-
-    // Group events by device ID for the selected day
     final Map<String, List<Map<String, dynamic>>> groupedByDevice = {};
     for (var event in _selectedDayEvents) {
       final deviceId = event['device_id'] as String;
@@ -112,7 +153,6 @@ class HistoryPageState extends State<HistoryPage> {
       }
       groupedByDevice[deviceId]!.add(event);
     }
-
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       children: groupedByDevice.entries.map((entry) {

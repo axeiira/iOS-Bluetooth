@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import '../utils/database_helper.dart';
-import 'sync_page.dart';
+import '../utils/database_helper.dart'; 
+import 'sync_page.dart'; 
 
 class ActivityLog {
   final IconData icon;
@@ -21,10 +20,10 @@ class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
   @override
-  State<DashboardPage> createState() => _DashboardPageState();
+  State<DashboardPage> createState() => DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
+class DashboardPageState extends State<DashboardPage> {
   int _unsyncedCount = 0;
   int _totalCount = 0;
   List<ActivityLog> _recentActivities = [];
@@ -32,11 +31,10 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    _refreshData();
+    refreshData();
   }
 
-  // Fungsi untuk memuat semua data dashboard
-  Future<void> _refreshData() async {
+  Future<void> refreshData() async {
     await _loadDataSummary();
     await _loadRecentActivities();
   }
@@ -53,38 +51,59 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _loadRecentActivities() async {
-    final recentRecords = await DatabaseHelper.instance.getAllGpsData(limit: 5); 
+    final recentRecords = await DatabaseHelper.instance.getAllGpsData(limit: 20);
+    if (!mounted || recentRecords.isEmpty) {
+      setState(() => _recentActivities = []);
+      return;
+    }
+
+    final Map<String, List<Map<String, dynamic>>> recordsByDevice = {};
+    for (var record in recentRecords) {
+      final deviceId = record['device_id'] as String;
+      if (recordsByDevice[deviceId] == null) {
+        recordsByDevice[deviceId] = [];
+      }
+      recordsByDevice[deviceId]!.add(record);
+    }
+
+    final List<ActivityLog> batchActivities = [];
+    recordsByDevice.forEach((deviceId, records) {
+      final newestRecord = records.first;
+      
+      batchActivities.add(ActivityLog(
+        icon: Icons.add_location_alt_outlined,
+        iconColor: Colors.blue.shade700,
+        title: "${records.length} Records",
+        time: "From: ${_formatActivityTitle(deviceId)} • ${_formatTimeAgo(DateTime.parse(newestRecord['timestamp']))}",
+      ));
+    });
+
+    batchActivities.sort((a, b) => b.time.compareTo(a.time));
+
     if (mounted) {
       setState(() {
-        _recentActivities = recentRecords.map((record) {
-          return ActivityLog(
-            icon: Icons.add_location_alt_outlined,
-            iconColor: Colors.blue.shade700,
-            title: "${record['device_id']} - Data Received",
-            time: _formatTimeAgo(DateTime.parse(record['timestamp'])),
-          );
-        }).toList();
+        _recentActivities = batchActivities;
       });
     }
   }
   
+  String _formatActivityTitle(String deviceId) {
+    if (deviceId.length > 12) {
+      final shortId = deviceId.substring(0, 8);
+      return "($shortId..)";
+    }
+    return deviceId;
+  }
+
   String _formatTimeAgo(DateTime dateTime) {
     final duration = DateTime.now().difference(dateTime);
-    if (duration.inDays > 1) {
-      return '${duration.inDays} days ago';
-    } else if (duration.inDays == 1) {
-      return '1 day ago';
-    } else if (duration.inHours > 1) {
-      return '${duration.inHours} hours ago';
-    } else if (duration.inHours == 1) {
-      return '1 hour ago';
-    } else if (duration.inMinutes > 1) {
-      return '${duration.inMinutes} minutes ago';
-    } else if (duration.inMinutes == 1) {
-      return '1 minute ago';
-    } else {
-      return 'Just now';
-    }
+    if (duration.inDays > 1) return '${duration.inDays} days ago';
+    if (duration.inDays == 1) return '1 day ago';
+    if (duration.inHours > 1) return '${duration.inHours} hours ago';
+    if (duration.inHours == 1) return '1 hour ago';
+    if (duration.inMinutes > 1) return '${duration.inMinutes} minutes ago';
+    if (duration.inMinutes == 1) return '1 minute ago';
+    return 'Just now';
   }
 
   @override
@@ -103,7 +122,7 @@ class _DashboardPageState extends State<DashboardPage> {
         elevation: 0,
       ),
       body: RefreshIndicator(
-        onRefresh: _refreshData,
+        onRefresh: refreshData,
         child: ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
@@ -135,7 +154,7 @@ class _DashboardPageState extends State<DashboardPage> {
             InkWell(
               onTap: () async {
                 await Navigator.push(context, MaterialPageRoute(builder: (context) => const SyncPage()));
-                _refreshData(); // Refresh data setelah kembali dari SyncPage
+                refreshData();
               },
               child: _buildStatusMetric("Unsynced", _unsyncedCount.toString(), Colors.white, isWarning: _unsyncedCount > 0),
             ),
@@ -186,7 +205,7 @@ class _DashboardPageState extends State<DashboardPage> {
               backgroundColor: activity.iconColor.withOpacity(0.1),
               child: Icon(activity.icon, color: activity.iconColor),
             ),
-            title: Text(activity.title),
+            title: Text(activity.title, overflow: TextOverflow.ellipsis),
             subtitle: Text(activity.time),
           );
         },

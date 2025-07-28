@@ -1,23 +1,26 @@
-// lib/pages/scan_page.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'device_page.dart';
 import 'dart:async';
 
 class ScanPage extends StatefulWidget {
   final Function(int) navigateToTab;
-
   const ScanPage({super.key, required this.navigateToTab});
 
   @override
   State<ScanPage> createState() => _ScanPageState();
 }
 
-class _ScanPageState extends State<ScanPage> {
+class _ScanPageState extends State<ScanPage> with SingleTickerProviderStateMixin {
   List<ScanResult> _scanResults = [];
   bool _isScanning = false;
   StreamSubscription<List<ScanResult>>? _scanResultsSubscription;
   StreamSubscription<bool>? _isScanningSubscription;
+
+  late AnimationController _animationController;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
@@ -28,18 +31,33 @@ class _ScanPageState extends State<ScanPage> {
     _isScanningSubscription = FlutterBluePlus.isScanning.listen((state) {
       if (mounted) setState(() => _isScanning = state);
     });
+
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_animationController);
   }
 
   @override
   void dispose() {
     _scanResultsSubscription?.cancel();
     _isScanningSubscription?.cancel();
+    _animationController.dispose();
     FlutterBluePlus.stopScan();
     super.dispose();
   }
 
   Future<void> _startScan() async {
+    HapticFeedback.lightImpact();
     await FlutterBluePlus.startScan(timeout: const Duration(seconds: 10));
+  }
+  
+  void _stopScan() {
+    HapticFeedback.lightImpact();
+    FlutterBluePlus.stopScan();
   }
 
   void _connectToDevice(BluetoothDevice device) async {
@@ -69,25 +87,12 @@ class _ScanPageState extends State<ScanPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Scan Devices"),
-      ),
-      body: RefreshIndicator(
-        onRefresh: _startScan,
-        child: _buildDeviceList(),
-      ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: FloatingActionButton(
-          onPressed: _isScanning ? () => FlutterBluePlus.stopScan() : _startScan,
-          backgroundColor: _isScanning ? Colors.red.shade700 : Theme.of(context).colorScheme.primary,
-          foregroundColor: Colors.white,
-          tooltip: _isScanning ? 'Stop Scan' : 'Scan Devices',
-          shape: const CircleBorder(),
-          child: Icon(
-            _isScanning ? Icons.stop : Icons.search,
-          ),
-        ),
+      appBar: AppBar(title: const Text("Scan Devices")),
+      body: RefreshIndicator(onRefresh: _startScan, child: _buildDeviceList()),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _isScanning ? _stopScan : _startScan,
+        shape: const CircleBorder(),
+        child: Icon(_isScanning ? Icons.stop : Icons.search),
       ),
     );
   }
@@ -97,10 +102,10 @@ class _ScanPageState extends State<ScanPage> {
         .where((r) => r.device.platformName.isNotEmpty && r.device.platformName.startsWith("GPS"))
         .toList();
 
-    if (_isScanning && gpsResults.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+    if (gpsResults.isNotEmpty) {
+      _animationController.forward();
     }
-    
+
     if (gpsResults.isEmpty) {
       return Center(
         child: SingleChildScrollView(
@@ -121,19 +126,25 @@ class _ScanPageState extends State<ScanPage> {
         ),
       );
     }
-    
+
     return ListView.builder(
       itemCount: gpsResults.length,
       itemBuilder: (context, index) {
         final result = gpsResults[index];
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          child: ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.bluetooth)),
-            title: Text(result.device.platformName),
-            subtitle: Text(result.device.remoteId.str),
-            trailing: Text("${result.rssi} dBm"),
-            onTap: () => _connectToDevice(result.device),
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: Card(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.bluetooth)),
+                title: Text(result.device.platformName),
+                subtitle: Text(result.device.remoteId.str),
+                trailing: Text("${result.rssi} dBm"),
+                onTap: () => _connectToDevice(result.device),
+              ),
+            ),
           ),
         );
       },

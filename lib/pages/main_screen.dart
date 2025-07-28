@@ -14,7 +14,6 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  // GlobalKey untuk merefresh halaman riwayat
   final GlobalKey<HistoryPageState> _historyPageKey = GlobalKey<HistoryPageState>();
 
   late final List<Widget> _pages;
@@ -24,7 +23,7 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _pages = <Widget>[
       const DashboardPage(),
-      ScanPage(navigateToTab: _navigateToTab), // Kirim fungsi navigasi
+      ScanPage(navigateToTab: _navigateToTab),
       HistoryPage(key: _historyPageKey),
       const SettingsPage(),
     ];
