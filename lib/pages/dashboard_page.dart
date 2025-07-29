@@ -115,7 +115,7 @@ class DashboardPageState extends State<DashboardPage> {
           children: [
             Image.asset('assets/images/logo.png', height: 32),
             const SizedBox(width: 12),
-            const Text("GeoTrack", style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text("People Mobility", style: TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
         backgroundColor: theme.scaffoldBackgroundColor,

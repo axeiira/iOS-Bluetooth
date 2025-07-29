@@ -3,16 +3,16 @@ import 'package:google_fonts/google_fonts.dart';
 import 'pages/main_screen.dart';
 
 void main() {
-  runApp(const GeoTrack());
+  runApp(const PeopleMobility());
 }
 
-class GeoTrack extends StatelessWidget {
-  const GeoTrack({super.key});
+class PeopleMobility extends StatelessWidget {
+  const PeopleMobility({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'GeoTrack',
+      title: 'People Mobility',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(

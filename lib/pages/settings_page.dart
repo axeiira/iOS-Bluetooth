@@ -52,7 +52,7 @@ class SettingsPage extends StatelessWidget {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text("About GeoTrack"),
+          title: const Text("About People Mobility"),
           content: const SingleChildScrollView(
             child: ListBody(
               children: <Widget>[
@@ -113,7 +113,7 @@ class SettingsPage extends StatelessWidget {
           const Divider(),
           ListTile(
             leading: const Icon(Icons.info_outline),
-            title: const Text("About GeoTrack"),
+            title: const Text("About People Mobility"),
             subtitle: const Text("Version 2.0.0"),
             onTap: () => _showAboutDialog(context),
           ),
