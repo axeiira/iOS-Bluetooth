@@ -54,7 +54,7 @@ class _SyncPageState extends State<SyncPage> {
     // siapkan payload dalam bentuk List
     final List<Map<String, dynamic>> payloadList = allUnsyncedData.map((data) {
       return {
-        'deviceId': data['device_id'],
+        'deviceId': int.tryParse(data['device_id'] as String) ?? 0, 
         'latitude': data['latitude'],
         'longitude': data['longitude'],
         'altitude': data['altitude'],

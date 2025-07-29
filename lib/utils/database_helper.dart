@@ -187,4 +187,28 @@ class DatabaseHelper {
     return unsynced;
   }
 
+  // mengambil data untuk recent activities
+  Future<List<Map<String, dynamic>>> getRecentActivityHeaders({int limit = 100}) async {
+    Database db = await instance.database;
+    final headers = await db.query(
+      'gps_data',
+      columns: ['device_id', 'timestamp'],
+      orderBy: 'timestamp DESC',
+      limit: limit,
+    );
+    return headers;
+  }
+
+  Future<int> countRecordsInSession(String deviceId, String initialTimestamp) async {
+    final db = await instance.database;
+    final List<Map<String, dynamic>> result = await db.rawQuery('''
+      SELECT COUNT(*) as count
+      FROM gps_data
+      WHERE device_id = ? AND
+            strftime('%s', timestamp) - strftime('%s', ?) < 300 AND
+            strftime('%s', timestamp) - strftime('%s', ?) >= 0
+    ''', [deviceId, initialTimestamp]);
+    
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
 }
