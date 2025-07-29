@@ -211,4 +211,40 @@ class DatabaseHelper {
     
     return Sqflite.firstIntValue(result) ?? 0;
   }
+
+  // mengambil daftar device_id
+  Future<List<String>> getUniqueDeviceIds() async {
+    final db = await instance.database;
+    final List<Map<String, dynamic>> result = await db.query(
+      'gps_data',
+      distinct: true,
+      columns: ['device_id'],
+      orderBy: 'timestamp DESC',
+    );
+    return result.map((row) => row['device_id'] as String).toList();
+  }
+
+  // Mendapatkan data terakhir dan jumlah untuk tiap perangkat
+  Future<Map<String, dynamic>?> getLatestSessionInfoForDevice(String deviceId) async {
+    final db = await instance.database;
+    final countResult = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM gps_data WHERE device_id = ?',
+      [deviceId],
+    );
+    final latestRecordResult = await db.query(
+      'gps_data',
+      where: 'device_id = ?',
+      whereArgs: [deviceId],
+      orderBy: 'timestamp DESC',
+      limit: 1,
+    );
+
+    if (latestRecordResult.isNotEmpty) {
+      return {
+        'count': Sqflite.firstIntValue(countResult) ?? 0,
+        'latest_timestamp': latestRecordResult.first['timestamp'],
+      };
+    }
+    return null;
+  }
 }

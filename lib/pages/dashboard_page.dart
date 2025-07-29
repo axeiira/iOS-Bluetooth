@@ -7,12 +7,14 @@ class ActivityLog {
   final Color iconColor;
   final String title;
   final String subtitle;
+  final DateTime timestamp;
 
   ActivityLog({
     required this.icon,
     required this.iconColor,
     required this.title,
     required this.subtitle,
+    required this.timestamp,
   });
 }
 
@@ -51,65 +53,36 @@ class DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _loadRecentActivities() async {
-    final recentHeaders = await DatabaseHelper.instance.getRecentActivityHeaders(limit: 100);
-    if (!mounted || recentHeaders.isEmpty) {
-      setState(() => _recentActivities = []);
-      return;
-    }
+    if (!mounted) return;
 
-    final List<List<Map<String, dynamic>>> sessions = [];
-    if (recentHeaders.isNotEmpty) {
-      List<Map<String, dynamic>> currentSession = [recentHeaders.first];
-      for (int i = 1; i < recentHeaders.length; i++) {
-        final prev = recentHeaders[i - 1];
-        final current = recentHeaders[i];
-        final prevTime = DateTime.parse(prev['timestamp'] as String);
-        final currentTime = DateTime.parse(current['timestamp'] as String);
-
-        if (current['device_id'] != prev['device_id'] || prevTime.difference(currentTime).inMinutes >= 5) {
-          sessions.add(currentSession);
-          currentSession = [current];
-        } else {
-          currentSession.add(current);
-        }
-      }
-      sessions.add(currentSession);
-    }
-
+    // 1. Dapatkan daftar semua perangkat unik
+    final deviceIds = await DatabaseHelper.instance.getUniqueDeviceIds();
+    
     final List<ActivityLog> batchActivities = [];
-    for (var session in sessions) {
-      final firstRecord = session.first;
-      final deviceId = firstRecord['device_id'] as String;
-      final timestamp = DateTime.parse(firstRecord['timestamp'] as String);
-      final allDbRecords = await DatabaseHelper.instance.getAllGpsData();
-      final sessionRecords = allDbRecords.where((rec) => rec['device_id'] == deviceId).length;
 
-      batchActivities.add(ActivityLog(
-        icon: Icons.add_location_alt_outlined,
-        iconColor: Colors.blue.shade700,
-        title: _formatActivityTitle(deviceId),
-        subtitle: "${sessionRecords} records • ${_formatTimeAgo(timestamp)}",
-      ));
+    // 2. Untuk setiap perangkat, dapatkan info sesi terakhirnya
+    for (String deviceId in deviceIds) {
+      final sessionInfo = await DatabaseHelper.instance.getLatestSessionInfoForDevice(deviceId);
+      if (sessionInfo != null) {
+        final timestamp = DateTime.parse(sessionInfo['latest_timestamp'] as String);
+        batchActivities.add(ActivityLog(
+          icon: Icons.add_location_alt_outlined,
+          iconColor: Colors.blue.shade700,
+          title: "Device $deviceId",
+          subtitle: "${sessionInfo['count']} records • ${_formatTimeAgo(timestamp)}",
+          timestamp: timestamp,
+        ));
+      }
     }
+
+    // 3. Urutkan berdasarkan waktu aktivitas terakhir
+    batchActivities.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
     if (mounted) {
       setState(() {
         _recentActivities = batchActivities.take(5).toList();
       });
     }
-  }
-
-  ActivityLog _createActivityLogFromSession(List<Map<String, dynamic>> session) {
-    final firstRecord = session.first;
-    final deviceId = firstRecord['device_id'] as String;
-    final timestamp = DateTime.parse(firstRecord['timestamp'] as String);
-
-    return ActivityLog(
-      icon: Icons.add_location_alt_outlined,
-      iconColor: Colors.blue.shade700,
-      title: _formatActivityTitle(deviceId),
-      subtitle: "${session.length} records • ${_formatTimeAgo(timestamp)}",
-    );
   }
   
   String _formatActivityTitle(String deviceId) {
