@@ -148,57 +148,68 @@ class _DevicePageState extends State<DevicePage> {
     }
   }
 
-  void _onDataReceived(List<int> value) {
-    if (value.isEmpty) return;
+void _onDataReceived(List<int> value) {
+  if (value.isEmpty) return;
 
-    try {
-      String dataString = utf8.decode(value).trim();
-      
+  try {
+    String dataString = utf8.decode(value).trim();
+    
+    if (!dataString.contains(',')) {
       if (dataString.startsWith("END:")) {
         HapticFeedback.mediumImpact();
+
+        final parts = dataString.split(':');
+        final int sentCount = int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
+        final bool isComplete = (sentCount == _recordsReceivedCount);
+
         setState(() {
           _isSyncing = false;
           _syncCompleted = true;
-          _syncStatusMessage = "Sync Complete!";
-        });
-        return;
-      }
-
-      if (dataString.contains(",")) {
-        final parts = dataString.split(',');
-        if (parts.length >= 9) {
-          final dataToSave = {
-            'device_id': parts[0].trim(),
-            'timestamp': parts[1].trim(),
-            'latitude': double.tryParse(parts[2]) ?? 0.0,
-            'longitude': double.tryParse(parts[3]) ?? 0.0,
-            'altitude': double.tryParse(parts[4]) ?? 0.0,
-            'num_satellite': int.tryParse(parts[5]) ?? 0,
-            'battery_percentage': int.tryParse(parts[6]) ?? 0,
-            'tag_button': parts[7] == 'true',
-            'geofence_status': parts[8] == 'true',
-          };
-
-          DatabaseHelper.instance.insertGpsData(dataToSave);
-
-          if (mounted) {
-            setState(() {
-              _recordsReceivedCount++;
-              if (_isSyncing) {
-                _syncStatusMessage = "Receiving Data...";
-              }
-            });
+          if (isComplete) {
+            _syncStatusMessage = "Success! All $sentCount records received.";
+          } else {
+            _syncStatusMessage = "Failed! Received $_recordsReceivedCount of $sentCount records. Please resync.";
           }
-        } else {
-          print("REAL: Ignoring malformed CSV data (kolom tidak cukup): '$dataString'");
-        }
+        });
+
       } else {
-        print("REAL: Ignoring non-CSV data: '$dataString'");
+        print("REAL: Ignoring non-data message: '$dataString'");
       }
-    } catch (e) {
-      print("REAL: Error parsing CSV data: $e | Raw data string: '${utf8.decode(value).trim()}'");
+      return;
     }
+    
+    final parts = dataString.split(',');
+    if (parts.length >= 9) {
+      final dataToSave = {
+        'device_id': parts[0].trim(),
+        'timestamp': parts[1].trim(),
+        'latitude': double.tryParse(parts[2]) ?? 0.0,
+        'longitude': double.tryParse(parts[3]) ?? 0.0,
+        'altitude': double.tryParse(parts[4]) ?? 0.0,
+        'num_satellite': int.tryParse(parts[5]) ?? 0,
+        'battery_percentage': int.tryParse(parts[6]) ?? 0,
+        'tag_button': parts[7] == 'true',
+        'geofence_status': parts[8] == 'true',
+      };
+
+      DatabaseHelper.instance.insertGpsData(dataToSave);
+
+      if (mounted) {
+        setState(() {
+          _recordsReceivedCount++;
+          if (_isSyncing) {
+            _syncStatusMessage = "Receiving Data... ($_recordsReceivedCount)";
+          }
+        });
+      }
+    } else {
+      print("REAL: Ignoring malformed CSV data: '$dataString'");
+    }
+
+  } catch (e) {
+    print("REAL: Error parsing data: $e | Raw data string: '${utf8.decode(value).trim()}'");
   }
+}
 
   @override
   Widget build(BuildContext context) {
