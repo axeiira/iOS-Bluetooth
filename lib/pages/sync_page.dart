@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../utils/database_helper.dart';
 import '../utils/http_manager.dart';
+import '../utils/sync_status_service.dart';
 
 class SyncPage extends StatefulWidget {
   const SyncPage({super.key});
@@ -31,6 +32,8 @@ class _SyncPageState extends State<SyncPage> {
 
   Future<void> _performBatchSync(Future<List<Map<String, dynamic>>> dataFetcher, String syncTargetName) async {
     if (_isSyncing) return;
+
+    SyncStatusService.instance.updateStatus(SyncStatus.syncing); 
 
     final stopwatch = Stopwatch()..start();
     setState(() {
@@ -101,8 +104,10 @@ class _SyncPageState extends State<SyncPage> {
       _syncingDeviceId = null;
       if (!anyChunkFailed) {
         _statusMessage = "Success! $totalRecordsSent records sent in $duration seconds.";
+        SyncStatusService.instance.updateStatus(SyncStatus.completed);
       } else {
         _statusMessage = "Sync failed. $totalRecordsSent records were sent before error: $finalErrorMessage";
+        SyncStatusService.instance.updateStatus(SyncStatus.error);
       }
     });
 

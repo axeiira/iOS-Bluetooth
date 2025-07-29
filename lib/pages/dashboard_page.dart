@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/database_helper.dart';
 import 'sync_page.dart';
+import '../utils/sync_status_service.dart';
 
 class ActivityLog {
   final IconData icon;
@@ -34,7 +35,20 @@ class DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     refreshData();
+    SyncStatusService.instance.addListener(_onSyncStatusChanged);
   }
+
+  @override
+  void dispose() {
+    SyncStatusService.instance.removeListener(_onSyncStatusChanged);
+    super.dispose();
+  }
+
+  void _onSyncStatusChanged() {
+    setState(() {
+    });
+  }
+
 
   Future<void> refreshData() async {
     await _loadDataSummary();
@@ -111,6 +125,30 @@ class DashboardPageState extends State<DashboardPage> {
         ),
         backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: ValueListenableBuilder<SyncStatus>(
+              valueListenable: SyncStatusService.instance,
+              builder: (context, status, child) {
+                switch (status) {
+                  case SyncStatus.syncing:
+                    return const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    );
+                  case SyncStatus.completed:
+                    return const Icon(Icons.cloud_done_outlined, color: Colors.green);
+                  case SyncStatus.error:
+                    return const Icon(Icons.cloud_off_outlined, color: Colors.red);
+                  default: // idle
+                    return const Icon(Icons.cloud_outlined, color: Colors.grey);
+                }
+              },
+            ),
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: refreshData,
