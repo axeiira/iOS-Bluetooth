@@ -174,4 +174,17 @@ class DatabaseHelper {
     await db.delete('gps_data');
     print("REAL: All GPS data deleted.");
   }
+
+  // Mengambil unsynced GPS data per perangkat
+  Future<List<Map<String, dynamic>>> getUnsyncedGpsDataForDevice(String deviceId) async {
+    Database db = await instance.database;
+    final unsynced = await db.query(
+      'gps_data',
+      where: 'is_synced = 0 AND device_id = ?',
+      whereArgs: [deviceId],
+    );
+    print("REAL: Fetched ${unsynced.length} unsynced GPS data records for device $deviceId.");
+    return unsynced;
+  }
+
 }
