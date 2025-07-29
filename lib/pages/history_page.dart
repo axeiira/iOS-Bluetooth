@@ -145,6 +145,7 @@ class HistoryPageState extends State<HistoryPage> {
     if (_selectedDayEvents.isEmpty) {
       return const Center(child: Text("No data for this day."));
     }
+
     final Map<String, List<Map<String, dynamic>>> groupedByDevice = {};
     for (var event in _selectedDayEvents) {
       final deviceId = event['device_id'] as String;
@@ -153,6 +154,7 @@ class HistoryPageState extends State<HistoryPage> {
       }
       groupedByDevice[deviceId]!.add(event);
     }
+
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       children: groupedByDevice.entries.map((entry) {
@@ -160,13 +162,7 @@ class HistoryPageState extends State<HistoryPage> {
         final records = entry.value;
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 8),
-          child: ListTile(
-            leading: CircleAvatar(
-              child: Text("${records.length}"),
-            ),
-            title: Text("Device ID: $deviceId"),
-            subtitle: Text("${records.length} records on this day"),
-            trailing: const Icon(Icons.map_outlined),
+          child: InkWell(
             onTap: () {
               Navigator.push(
                 context,
@@ -175,6 +171,49 @@ class HistoryPageState extends State<HistoryPage> {
                 ),
               );
             },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Column(
+                    children: [
+                      Text(
+                        "${records.length}",
+                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      const Text("records"),
+                    ],
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Device ID: $deviceId",
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "Data for ${DateFormat('d MMMM yyyy').format(_selectedDay!)}",
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(Icons.map_outlined, color: Colors.grey.shade400),
+                ],
+              ),
+            ),
           ),
         );
       }).toList(),
