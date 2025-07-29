@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
-import '../utils/database_helper.dart'; 
-import 'sync_page.dart'; 
+import '../utils/database_helper.dart';
+import 'sync_page.dart';
 
 class ActivityLog {
   final IconData icon;
   final Color iconColor;
   final String title;
-  final String time;
+  final String subtitle;
 
   ActivityLog({
     required this.icon,
     required this.iconColor,
     required this.title,
-    required this.time,
+    required this.subtitle,
   });
 }
 
@@ -51,7 +51,7 @@ class DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _loadRecentActivities() async {
-    final recentRecords = await DatabaseHelper.instance.getAllGpsData(limit: 20);
+    final recentRecords = await DatabaseHelper.instance.getAllGpsData(limit: 50);
     if (!mounted || recentRecords.isEmpty) {
       setState(() => _recentActivities = []);
       return;
@@ -73,24 +73,32 @@ class DashboardPageState extends State<DashboardPage> {
       batchActivities.add(ActivityLog(
         icon: Icons.add_location_alt_outlined,
         iconColor: Colors.blue.shade700,
-        title: "${records.length} Records",
-        time: "From: ${_formatActivityTitle(deviceId)} • ${_formatTimeAgo(DateTime.parse(newestRecord['timestamp']))}",
+        title: _formatActivityTitle(deviceId),
+        subtitle: "${records.length} records • ${_formatTimeAgo(DateTime.parse(newestRecord['timestamp']))}",
       ));
     });
-
-    batchActivities.sort((a, b) => b.time.compareTo(a.time));
+    
+    batchActivities.sort((a, b) {
+        final timeA = _extractTime(a.subtitle);
+        final timeB = _extractTime(b.subtitle);
+        return timeB.compareTo(timeA);
+    });
 
     if (mounted) {
       setState(() {
-        _recentActivities = batchActivities;
+        _recentActivities = batchActivities.take(5).toList();
       });
     }
+  }
+  
+  DateTime _extractTime(String subtitle) {
+      return DateTime.now();
   }
   
   String _formatActivityTitle(String deviceId) {
     if (deviceId.length > 12) {
       final shortId = deviceId.substring(0, 8);
-      return "($shortId..)";
+      return "Device ($shortId..)";
     }
     return deviceId;
   }
@@ -206,7 +214,7 @@ class DashboardPageState extends State<DashboardPage> {
               child: Icon(activity.icon, color: activity.iconColor),
             ),
             title: Text(activity.title, overflow: TextOverflow.ellipsis),
-            subtitle: Text(activity.time),
+            subtitle: Text(activity.subtitle), // Menggunakan properti subtitle
           );
         },
         separatorBuilder: (context, index) => const Divider(height: 1, indent: 16, endIndent: 16),
