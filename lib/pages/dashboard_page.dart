@@ -51,38 +51,46 @@ class DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _loadRecentActivities() async {
-    final recentRecords = await DatabaseHelper.instance.getAllGpsData(limit: 50);
-    if (!mounted || recentRecords.isEmpty) {
+    final recentHeaders = await DatabaseHelper.instance.getRecentActivityHeaders(limit: 100);
+    if (!mounted || recentHeaders.isEmpty) {
       setState(() => _recentActivities = []);
       return;
     }
 
-    final Map<String, List<Map<String, dynamic>>> recordsByDevice = {};
-    for (var record in recentRecords) {
-      final deviceId = record['device_id'] as String;
-      if (recordsByDevice[deviceId] == null) {
-        recordsByDevice[deviceId] = [];
+    final List<List<Map<String, dynamic>>> sessions = [];
+    if (recentHeaders.isNotEmpty) {
+      List<Map<String, dynamic>> currentSession = [recentHeaders.first];
+      for (int i = 1; i < recentHeaders.length; i++) {
+        final prev = recentHeaders[i - 1];
+        final current = recentHeaders[i];
+        final prevTime = DateTime.parse(prev['timestamp'] as String);
+        final currentTime = DateTime.parse(current['timestamp'] as String);
+
+        if (current['device_id'] != prev['device_id'] || prevTime.difference(currentTime).inMinutes >= 5) {
+          sessions.add(currentSession);
+          currentSession = [current];
+        } else {
+          currentSession.add(current);
+        }
       }
-      recordsByDevice[deviceId]!.add(record);
+      sessions.add(currentSession);
     }
 
     final List<ActivityLog> batchActivities = [];
-    recordsByDevice.forEach((deviceId, records) {
-      final newestRecord = records.first;
-      
+    for (var session in sessions) {
+      final firstRecord = session.first;
+      final deviceId = firstRecord['device_id'] as String;
+      final timestamp = DateTime.parse(firstRecord['timestamp'] as String);
+      final allDbRecords = await DatabaseHelper.instance.getAllGpsData();
+      final sessionRecords = allDbRecords.where((rec) => rec['device_id'] == deviceId).length;
+
       batchActivities.add(ActivityLog(
         icon: Icons.add_location_alt_outlined,
         iconColor: Colors.blue.shade700,
         title: _formatActivityTitle(deviceId),
-        subtitle: "${records.length} records • ${_formatTimeAgo(DateTime.parse(newestRecord['timestamp']))}",
+        subtitle: "${sessionRecords} records • ${_formatTimeAgo(timestamp)}",
       ));
-    });
-    
-    batchActivities.sort((a, b) {
-        final timeA = _extractTime(a.subtitle);
-        final timeB = _extractTime(b.subtitle);
-        return timeB.compareTo(timeA);
-    });
+    }
 
     if (mounted) {
       setState(() {
@@ -90,27 +98,29 @@ class DashboardPageState extends State<DashboardPage> {
       });
     }
   }
-  
-  DateTime _extractTime(String subtitle) {
-      return DateTime.now();
+
+  ActivityLog _createActivityLogFromSession(List<Map<String, dynamic>> session) {
+    final firstRecord = session.first;
+    final deviceId = firstRecord['device_id'] as String;
+    final timestamp = DateTime.parse(firstRecord['timestamp'] as String);
+
+    return ActivityLog(
+      icon: Icons.add_location_alt_outlined,
+      iconColor: Colors.blue.shade700,
+      title: _formatActivityTitle(deviceId),
+      subtitle: "${session.length} records • ${_formatTimeAgo(timestamp)}",
+    );
   }
   
   String _formatActivityTitle(String deviceId) {
-    if (deviceId.length > 12) {
-      final shortId = deviceId.substring(0, 8);
-      return "Device ($shortId..)";
-    }
-    return deviceId;
+    return "Device $deviceId";
   }
 
   String _formatTimeAgo(DateTime dateTime) {
     final duration = DateTime.now().difference(dateTime);
-    if (duration.inDays > 1) return '${duration.inDays} days ago';
-    if (duration.inDays == 1) return '1 day ago';
-    if (duration.inHours > 1) return '${duration.inHours} hours ago';
-    if (duration.inHours == 1) return '1 hour ago';
-    if (duration.inMinutes > 1) return '${duration.inMinutes} minutes ago';
-    if (duration.inMinutes == 1) return '1 minute ago';
+    if (duration.inDays > 0) return '${duration.inDays}d ago';
+    if (duration.inHours > 0) return '${duration.inHours}h ago';
+    if (duration.inMinutes > 0) return '${duration.inMinutes}m ago';
     return 'Just now';
   }
 
@@ -191,7 +201,7 @@ class DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildRecentActivityList() {
+ Widget _buildRecentActivityList() {
     if (_recentActivities.isEmpty) {
       return const Card(
         child: ListTile(
@@ -214,7 +224,7 @@ class DashboardPageState extends State<DashboardPage> {
               child: Icon(activity.icon, color: activity.iconColor),
             ),
             title: Text(activity.title, overflow: TextOverflow.ellipsis),
-            subtitle: Text(activity.subtitle), // Menggunakan properti subtitle
+            subtitle: Text(activity.subtitle),
           );
         },
         separatorBuilder: (context, index) => const Divider(height: 1, indent: 16, endIndent: 16),
