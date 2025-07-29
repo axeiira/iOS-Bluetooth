@@ -12,8 +12,9 @@ class MapViewPage extends StatefulWidget {
 }
 
 class _MapViewPageState extends State<MapViewPage> {
+  final MapController _mapController = MapController();
   final List<LatLng> _points = [];
-  LatLng? _initialCameraCenter;
+  LatLngBounds? _bounds;
 
   @override
   void initState() {
@@ -31,8 +32,7 @@ class _MapViewPageState extends State<MapViewPage> {
       ));
     }
     
-    // Atur posisi kamera awal ke titik pertama
-    _initialCameraCenter = _points.first;
+    _bounds = LatLngBounds.fromPoints(_points);
 
     setState(() {});
   }
@@ -46,20 +46,29 @@ class _MapViewPageState extends State<MapViewPage> {
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
       ),
-      body: _initialCameraCenter == null
+      body: _points.isEmpty
           ? const Center(child: Text("No GPS data to display."))
           : FlutterMap(
+              mapController: _mapController,
               options: MapOptions(
-                initialCenter: _initialCameraCenter!,
+                initialCenter: _points.first, // posisi awal
                 initialZoom: 14.0,
+                onMapReady: () {
+                  if (_bounds != null) {
+                    _mapController.fitCamera(
+                      CameraFit.bounds(
+                        bounds: _bounds!,
+                        padding: const EdgeInsets.all(50.0),
+                      ),
+                    );
+                  }
+                },
               ),
               children: [
-                // Layer 1: Tile Peta dari OpenStreetMap
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.example.cek',
                 ),
-                // Layer 2: Garis Rute (Polyline)
                 PolylineLayer(
                   polylines: [
                     Polyline(
@@ -69,23 +78,16 @@ class _MapViewPageState extends State<MapViewPage> {
                     ),
                   ],
                 ),
-                // Layer 3: Titik Awal dan Akhir (Marker)
                 MarkerLayer(
                   markers: [
-                    // Marker Titik Awal
                     Marker(
-                      width: 80.0,
-                      height: 80.0,
                       point: _points.first,
                       child: const Tooltip(
                         message: "Start Point",
                         child: Icon(Icons.location_on, size: 40.0, color: Colors.green),
                       )
                     ),
-                    // Marker Titik Akhir
                     Marker(
-                      width: 80.0,
-                      height: 80.0,
                       point: _points.last,
                       child: const Tooltip(
                         message: "End Point",
