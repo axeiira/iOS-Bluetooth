@@ -132,8 +132,8 @@ class _DevicePageState extends State<DevicePage> {
               _syncStatusMessage = "Error on data stream: $e";
             });
         });
-        setState(() => _syncStatusMessage = "Sending 'READY' command...");
-        await targetCharacteristic.write(utf8.encode("READY"), withoutResponse: true);
+        setState(() => _syncStatusMessage = "Sending 'APP' command...");
+        await targetCharacteristic.write(utf8.encode("APP"), withoutResponse: true);
       } else {
         setState(() {
           _isSyncing = false;
