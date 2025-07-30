@@ -3,6 +3,7 @@ import 'dashboard_page.dart';
 import 'scan_page.dart';
 import 'history_page.dart';
 import 'settings_page.dart';
+import 'pairing_page.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -24,6 +25,7 @@ class _MainScreenState extends State<MainScreen> {
     _pages = <Widget>[
       const DashboardPage(),
       ScanPage(navigateToTab: _navigateToTab),
+      const PairingPage(),
       HistoryPage(key: _historyPageKey),
       const SettingsPage(),
     ];
@@ -67,6 +69,11 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.bluetooth_searching_outlined),
             selectedIcon: Icon(Icons.bluetooth_searching),
             label: 'Scan',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.link_outlined),
+            selectedIcon: Icon(Icons.link),
+            label: 'Pairing',
           ),
           NavigationDestination(
             icon: Icon(Icons.history_outlined),

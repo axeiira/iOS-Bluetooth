@@ -22,7 +22,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'telemetry.db');
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -46,16 +46,39 @@ class DatabaseHelper {
       )
     ''');
     print("REAL: Database table 'gps_data' created with new schema.");
+
+    await db.execute('''
+      CREATE TABLE pairings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        device_id TEXT NOT NULL,
+        worker_id TEXT NOT NULL,
+        worker_name TEXT,
+        timestamp TEXT NOT NULL,
+        is_synced INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    print('REAL: Database table "pairings" created with new schema.');
+
+
   }
 
-  // onUpgrade akan menghapus tabel lama dan membuat yang baru
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    print("REAL: Upgrading database from version $oldVersion to $newVersion.");
-    await db.execute("DROP TABLE IF EXISTS gps_data");
-    print("REAL: Dropped old 'gps_data' table.");
-    await _onCreate(db, newVersion);
+    if (oldVersion < 4) {
+      // Tambahkan tabel baru tanpa menghapus yang lama
+      await db.execute('''
+        CREATE TABLE pairings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          device_id TEXT NOT NULL,
+          worker_id TEXT NOT NULL,
+          worker_name TEXT,
+          timestamp TEXT NOT NULL,
+          is_synced INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+    }
   }
 
+  // Fungsi untuk menyimpan data GPS
   Future<int> insertGpsData(Map<String, dynamic> row) async {
     Database db = await instance.database;
     if (row.containsKey('tag_button') && row['tag_button'] is bool) {
@@ -67,6 +90,18 @@ class DatabaseHelper {
     final id = await db.insert('gps_data', row);
     print("REAL: Inserted GPS data with ID: $id.");
     return id;
+  }
+
+  // Fungsi untuk menyimpan pairing
+  Future<int> insertPairing(Map<String, dynamic> row) async {
+    Database db = await instance.database;
+    return await db.insert('pairings', row);
+  }
+
+  // mendapatkan data pairing yang belum synced
+  Future<List<Map<String, dynamic>>> getUnsyncedPairings() async {
+    Database db = await instance.database;
+    return await db.query('pairings', where: 'is_synced = 0', orderBy: 'timestamp DESC');
   }
 
   // Mengambil semua data yang belum disinkronkan dari SQLite

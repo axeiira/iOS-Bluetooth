@@ -62,5 +62,7 @@
 		<true/>
 	</dict>
 
+	<key>NSCameraUsageDescription</key>
+	<string>Aplikasi ini memerlukan akses kamera untuk memindai QR code perangkat dan pemanen.</string>
 </dict>
 </plist>
