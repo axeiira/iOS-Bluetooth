@@ -52,6 +52,7 @@ dependencies:
   pie_chart: ^5.4.0
   permission_handler: ^12.0.1
   file_picker: ^10.2.0
+  shared_preferences: ^2.5.3
 
 
 dev_dependencies:

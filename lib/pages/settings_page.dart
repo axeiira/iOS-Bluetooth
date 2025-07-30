@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/database_helper.dart';
 import 'local_storage_page.dart';
+import 'server_configuration_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -89,9 +90,12 @@ class SettingsPage extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.dns_outlined),
             title: const Text("Server Configuration"),
-            subtitle: const Text("Set endpoint URLs (coming soon)"),
+            subtitle: const Text("Set endpoint URLs"),
             onTap: () {
-              // TODO
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ServerConfigurationPage()),
+              );
             },
           ),
           ListTile(
