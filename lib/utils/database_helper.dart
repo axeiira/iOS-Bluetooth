@@ -22,7 +22,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'telemetry.db');
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -53,6 +53,7 @@ class DatabaseHelper {
         device_id TEXT NOT NULL,
         worker_id TEXT NOT NULL,
         worker_name TEXT,
+        assignment_reason TEXT,
         timestamp TEXT NOT NULL,
         is_synced INTEGER NOT NULL DEFAULT 0
       )
@@ -64,7 +65,6 @@ class DatabaseHelper {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 4) {
-      // Tambahkan tabel baru tanpa menghapus yang lama
       await db.execute('''
         CREATE TABLE pairings (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,6 +75,9 @@ class DatabaseHelper {
           is_synced INTEGER NOT NULL DEFAULT 0
         )
       ''');
+    }
+    if (oldVersion < 5) {
+      await db.execute('ALTER TABLE pairings ADD COLUMN assignment_reason TEXT');
     }
   }
 
@@ -376,5 +379,22 @@ class DatabaseHelper {
       print("REAL: Auto-deleted $count records older than 30 days.");
     }
     return count;
+  }
+
+  // menandai pairing yang sudah disinkronkan
+  Future<int> markPairingsAsSynced(List<int> ids) async {
+    if (ids.isEmpty) return 0;
+    Database db = await instance.database;
+    final batch = db.batch();
+    for (int id in ids) {
+      batch.update(
+        'pairings',
+        {'is_synced': 1},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
+    final results = await batch.commit();
+    return results.length;
   }
 }

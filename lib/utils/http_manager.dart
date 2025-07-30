@@ -52,6 +52,45 @@ class HttpManager {
     }
   }
 
+  Future<SendResult> sendPairings(List<Map<String, dynamic>> pairingsList) async {
+    // sesuaikan URL
+    final String assignUrl = "http://192.168.17.210:6432/api/device-assignments/assign"; 
+    
+    try {
+      String jsonData = jsonEncode(pairingsList);
+      print("===================================");
+      print("REAL: Mengirim BATCH PAIRING ke Server...");
+      print("REAL: URL: $assignUrl");
+      print("REAL: Payload: $jsonData");
+      print("===================================");
+
+      final response = await http.post(
+        Uri.parse(assignUrl),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonData,
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 201) {
+        print("REAL: Batch pairing berhasil dikirim. Server response: ${response.body}");
+        return SendResult(success: true, message: "Pairings sent successfully.");
+      } else {
+        print("REAL: Server merespon dengan error. Status: ${response.statusCode}\nBody: ${response.body}");
+        return SendResult(
+          success: false,
+          message: "Server error: ${response.statusCode}",
+        );
+      }
+    } catch (e) {
+      print("REAL: Error Jaringan: ${e.toString()}");
+      return SendResult(
+        success: false,
+        message: "Network Error: ${e.toString()}",
+      );
+    }
+  }
+
   Future<void> sendNotificationToDashboard({
     required String deviceId,
     required int totalRecordsSent,
