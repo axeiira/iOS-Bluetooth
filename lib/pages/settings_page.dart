@@ -1,6 +1,6 @@
-// lib/pages/settings_page.dart
 import 'package:flutter/material.dart';
 import '../utils/database_helper.dart';
+import 'local_storage_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -97,9 +97,12 @@ class SettingsPage extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.storage_outlined),
             title: const Text("Local Storage"),
-            subtitle: const Text("Manage saved data (coming soon)"),
+            subtitle: const Text("View details and export data"),
             onTap: () {
-              // TODO
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LocalStoragePage()),
+              );
             },
           ),
           const Divider(),

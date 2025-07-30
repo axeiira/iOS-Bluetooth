@@ -1,6 +1,10 @@
+import 'dart:io';
+
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:intl/intl.dart';
+import 'package:csv/csv.dart';
 
 class DatabaseHelper {
   DatabaseHelper._privateConstructor();
@@ -246,5 +250,75 @@ class DatabaseHelper {
       };
     }
     return null;
+  }
+
+  // Mendapatkan path file database
+  Future<String> getDatabasePath() async {
+    return join(await getDatabasesPath(), 'telemetry.db');
+  }
+
+  // mendapatkan ukuran file database dalam MB
+  Future<double> getDatabaseSize() async {
+    final path = await getDatabasePath();
+    final file = File(path);
+    if (await file.exists()) {
+      final bytes = await file.length();
+      return bytes / (1024 * 1024); // bytes to megabytes
+    }
+    return 0.0;
+  }
+
+  // ekspor semua data menjadi string format CSV
+  Future<String> exportToCsv() async {
+    final db = await instance.database;
+    final List<Map<String, dynamic>> allData = await db.query('gps_data');
+
+    if (allData.isEmpty) {
+      return ""; // return string kosong jika tidak ada data
+    }
+
+    List<String> headers = allData.first.keys.toList();
+    List<List<dynamic>> rows = [];
+    rows.add(headers);
+
+    for (var row in allData) {
+      List<dynamic> rowValues = headers.map((header) => row[header]).toList();
+      rows.add(rowValues);
+    }
+
+    return const ListToCsvConverter().convert(rows);
+  }
+
+  // fungsi untuk mendapatkan data summary per device
+  Future<List<Map<String, dynamic>>> getDataSummaryByDevice() async {
+    final db = await instance.database;
+    final List<Map<String, dynamic>> result = await db.rawQuery('''
+      SELECT device_id, COUNT(*) as record_count
+      FROM gps_data
+      GROUP BY device_id
+      ORDER BY record_count DESC
+    ''');
+    return result;
+  }
+
+  // ekspor data untuk satu device spesifik
+  Future<String> exportDeviceToCsv(String deviceId) async {
+    final db = await instance.database;
+    final List<Map<String, dynamic>> deviceData = await db.query(
+      'gps_data',
+      where: 'device_id = ?',
+      whereArgs: [deviceId],
+    );
+
+    if (deviceData.isEmpty) return "";
+
+    List<String> headers = deviceData.first.keys.toList();
+    List<List<dynamic>> rows = [headers];
+
+    for (var row in deviceData) {
+      rows.add(headers.map((header) => row[header]).toList());
+    }
+
+    return const ListToCsvConverter().convert(rows);
   }
 }
