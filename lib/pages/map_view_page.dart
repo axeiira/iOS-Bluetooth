@@ -11,7 +11,7 @@ class MapViewPage extends StatefulWidget {
   State<MapViewPage> createState() => _MapViewPageState();
 }
 
-class _MapViewPageState extends State<MapViewPage> {
+class _MapViewPageState extends State<MapViewPage> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   final List<LatLng> _points = [];
   LatLngBounds? _bounds;
@@ -58,7 +58,7 @@ class _MapViewPageState extends State<MapViewPage> {
                     _mapController.fitCamera(
                       CameraFit.bounds(
                         bounds: _bounds!,
-                        padding: const EdgeInsets.all(50.0),
+                        padding: const EdgeInsets.all(120.0),
                       ),
                     );
                   }
@@ -67,7 +67,11 @@ class _MapViewPageState extends State<MapViewPage> {
               children: [
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.example.cek',
+                  tileProvider: NetworkTileProvider(
+                    headers: {
+                      'User-Agent': 'com.example.cek',
+                    },
+                  ),
                 ),
                 PolylineLayer(
                   polylines: [
