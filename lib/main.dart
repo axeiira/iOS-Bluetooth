@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'pages/main_screen.dart';
+import 'utils/database_helper.dart';
 
-void main() {
-  runApp(const PeopleMobility());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  await DatabaseHelper.instance.deleteOldData();
+  
+  runApp(const PeopleMobilityApp());
 }
 
-class PeopleMobility extends StatelessWidget {
-  const PeopleMobility({super.key});
+class PeopleMobilityApp extends StatelessWidget {
+  const PeopleMobilityApp({super.key});
 
   @override
   Widget build(BuildContext context) {

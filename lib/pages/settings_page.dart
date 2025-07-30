@@ -107,14 +107,6 @@ class SettingsPage extends StatelessWidget {
           ),
           const Divider(),
           ListTile(
-            leading: Icon(Icons.delete_sweep_outlined,
-                color: Colors.red.shade700),
-            title: Text("Delete All Local Data",
-                style: TextStyle(color: Colors.red.shade700)),
-            onTap: () => _showDeleteConfirmationDialog(context),
-          ),
-          const Divider(),
-          ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text("About People Mobility"),
             subtitle: const Text("Version 2.0.0"),

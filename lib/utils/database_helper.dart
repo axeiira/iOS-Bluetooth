@@ -321,4 +321,25 @@ class DatabaseHelper {
 
     return const ListToCsvConverter().convert(rows);
   }
+
+  // fungsi untuk menghapus data yang sudah lebih dari 30 hari
+  Future<int> deleteOldData() async {
+    final db = await instance.database;
+    
+    // get tanggal 30 hari yang lalu terhitung sejak waktu sekarang
+    final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+    final timestampString = thirtyDaysAgo.toIso8601String();
+
+    // delete
+    final count = await db.delete(
+      'gps_data',
+      where: 'timestamp < ?',
+      whereArgs: [timestampString],
+    );
+    
+    if (count > 0) {
+      print("REAL: Auto-deleted $count records older than 30 days.");
+    }
+    return count;
+  }
 }
