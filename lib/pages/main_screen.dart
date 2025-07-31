@@ -24,8 +24,8 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _pages = <Widget>[
       const DashboardPage(),
-      ScanPage(navigateToTab: _navigateToTab),
       const PairingPage(),
+      ScanPage(navigateToTab: _navigateToTab),
       HistoryPage(key: _historyPageKey),
       const SettingsPage(),
     ];
@@ -66,14 +66,14 @@ class _MainScreenState extends State<MainScreen> {
             label: 'Dashboard',
           ),
           NavigationDestination(
-            icon: Icon(Icons.bluetooth_searching_outlined),
-            selectedIcon: Icon(Icons.bluetooth_searching),
-            label: 'Scan',
-          ),
-          NavigationDestination(
             icon: Icon(Icons.link_outlined),
             selectedIcon: Icon(Icons.link),
             label: 'Pairing',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.bluetooth_searching_outlined),
+            selectedIcon: Icon(Icons.bluetooth_searching),
+            label: 'Scan',
           ),
           NavigationDestination(
             icon: Icon(Icons.history_outlined),
