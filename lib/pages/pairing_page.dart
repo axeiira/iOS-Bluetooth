@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../utils/database_helper.dart';
 import 'qr_scanner_page.dart';
 import '../utils/http_manager.dart';
+import '../utils/app_strings.dart';
 
 class PairingPage extends StatefulWidget {
   const PairingPage({super.key});
@@ -17,10 +18,26 @@ class _PairingPageState extends State<PairingPage> {
   bool _isLoading = true;
   bool _isSyncing = false;
 
+  int _currentStep = 0;
+  Map<String, dynamic>? _scannedDeviceData;
+  Map<String, dynamic>? _scannedWorkerData;
+  final TextEditingController _reasonController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     _loadUnsyncedPairings();
+  }
+
+  Future<void> _loadUnsyncedPairings() async {
+    setState(() => _isLoading = true);
+    final data = await DatabaseHelper.instance.getUnsyncedPairings();
+    if (mounted) {
+      setState(() {
+        _unsyncedPairings = data;
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _syncPairings() async {
@@ -34,16 +51,11 @@ class _PairingPageState extends State<PairingPage> {
     final List<Map<String, dynamic>> payloadList = _unsyncedPairings.map((pairing) {
       return {
         'deviceId': int.tryParse(pairing['device_id'] as String) ?? 0,
-        'employeeId': int.tryParse(pairing['worker_id'] as String) ?? 0, 
+        'employeeId': int.tryParse(pairing['worker_id'] as String) ?? 0,
         'assignmentReason': pairing['assignment_reason'],
         'startDate': pairing['timestamp'],
       };
     }).toList();
-
-    // Debugging output
-    print("=================== PAYLOAD TO SERVER ===================");
-    print(jsonEncode(payloadList));
-    print("=========================================================");
 
     final result = await HttpManager().sendPairings(payloadList);
 
@@ -59,177 +71,229 @@ class _PairingPageState extends State<PairingPage> {
     _loadUnsyncedPairings();
   }
 
-  Future<void> _loadUnsyncedPairings() async {
-    setState(() => _isLoading = true);
-    final data = await DatabaseHelper.instance.getUnsyncedPairings();
-    if (mounted) {
+  Future<void> _scanDevice() async {
+    final deviceQrResult = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (context) => const QrScannerPage(instruction: AppStrings.pairingStep1Subtitle)),
+    );
+    if (deviceQrResult == null || !mounted) return;
+
+    try {
+      final data = jsonDecode(deviceQrResult);
+      if (data['type'] != 'device' || data['id'] == null) throw const FormatException("Invalid QR");
       setState(() {
-        _unsyncedPairings = data;
-        _isLoading = false;
+        _scannedDeviceData = data;
+        _currentStep = 1;
       });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invalid Device QR Code.")));
     }
   }
 
-  Future<void> _startNewPairingSession() async {
-    // scan device QR
-    final deviceQrResult = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (context) => const QrScannerPage(instruction: "Scan the QR Code on the GPS Device")),
-    );
-
-    if (deviceQrResult == null || !mounted) return;
-
-    Map<String, dynamic> deviceData;
-    try {
-      deviceData = jsonDecode(deviceQrResult);
-      if (deviceData['type'] != 'device' || deviceData['id'] == null) throw const FormatException("Invalid type");
-    } catch (e) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invalid Device QR Code.")));
-      return;
-    }
-
-    if (!mounted) return;
-    final bool? continueToWorkerScan = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text("Device Detected"),
-        content: Text("Device ID: ${deviceData['id']} found.\n\nContinue to scan worker?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text("Continue")),
-        ],
-      )
-    );
-
-    if (continueToWorkerScan != true || !mounted) return;
-
-    // scan worker QR
+  Future<void> _scanWorker() async {
     final workerQrResult = await Navigator.push<String>(
       context,
-      MaterialPageRoute(builder: (context) => const QrScannerPage(instruction: "Scan the Worker's ID QR Code")),
+      MaterialPageRoute(builder: (context) => const QrScannerPage(instruction: AppStrings.pairingStep2Subtitle)),
     );
-
     if (workerQrResult == null || !mounted) return;
 
-    Map<String, dynamic> workerData;
     try {
-      workerData = jsonDecode(workerQrResult);
-      if (workerData['type'] != 'worker' || workerData['id'] == null) throw const FormatException("Invalid type");
-    } catch (e) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invalid Worker QR Code.")));
-      return;
-    }
-    
-    // confirm and save pairing
-    final deviceId = deviceData['id'].toString();
-    final workerId = workerData['id'].toString();
-    final workerName = workerData['name']?.toString() ?? 'Unknown';
-    final TextEditingController reasonController = TextEditingController();
-
-    if (!mounted) return;
-    final bool? confirmSave = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Confirm Pairing"),
-        content: SingleChildScrollView(
-          child: ListBody(
-            children: <Widget>[
-              Text("Device ID: $deviceId"),
-              Text("Worker: $workerName (ID: $workerId)"),
-              const SizedBox(height: 24),
-              TextFormField(
-                controller: reasonController,
-                decoration: const InputDecoration(
-                  labelText: "Assignment Reason (Optional)",
-                  border: OutlineInputBorder(),
-                  hintText: "e.g., Perangkat pengganti",
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text("Save")),
-        ],
-      )
-    );
-
-    if (confirmSave == true) {
-      await DatabaseHelper.instance.insertPairing({
-        'device_id': deviceId,
-        'worker_id': workerId,
-        'worker_name': workerName,
-        'assignment_reason': reasonController.text.trim(),
-        'timestamp': DateTime.now().toIso8601String(),
-        'is_synced': 0,
+      final data = jsonDecode(workerQrResult);
+      if (data['type'] != 'worker' || data['id'] == null) throw const FormatException("Invalid QR");
+      setState(() {
+        _scannedWorkerData = data;
+        _currentStep = 2;
       });
-      await _loadUnsyncedPairings();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invalid Worker QR Code.")));
     }
+  }
+
+  Future<void> _savePairing() async {
+    if (_scannedDeviceData == null || _scannedWorkerData == null) return;
+    
+    await DatabaseHelper.instance.insertPairing({
+      'device_id': _scannedDeviceData!['id'].toString(),
+      'worker_id': _scannedWorkerData!['id'].toString(),
+      'worker_name': _scannedWorkerData!['name']?.toString() ?? 'Unknown',
+      'assignment_reason': _reasonController.text.trim(),
+      'timestamp': DateTime.now().toIso8601String(),
+      'is_synced': 0,
+    });
+    
+    _resetStepper();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Pairing saved successfully!"), behavior: SnackBarBehavior.floating),
+    );
+    await _loadUnsyncedPairings();
+  }
+  
+  void _onStepCancel() {
+     if (_currentStep > 0) {
+      setState(() => _currentStep -= 1);
+    }
+  }
+
+  void _resetStepper() {
+    setState(() {
+      _currentStep = 0;
+      _scannedDeviceData = null;
+      _scannedWorkerData = null;
+      _reasonController.clear();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Device & Worker Pairing"),
-        actions: [
-          if (!_isLoading)
-            Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: _isSyncing
-                  ? const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white)))
-                  : IconButton(
-                      icon: const Icon(Icons.sync),
-                      onPressed: _unsyncedPairings.isNotEmpty ? _syncPairings : null,
-                      tooltip: "Sync Pairings",
-                    ),
-            )
-        ],
+        title: const Text(AppStrings.pairingTitle, style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        elevation: 0,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadUnsyncedPairings,
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.qr_code_scanner),
-                      label: const Text("Start New Pairing Session"),
-                      onPressed: _startNewPairingSession,
-                      style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+      body: RefreshIndicator(
+        onRefresh: _loadUnsyncedPairings,
+        child: ListView(
+          padding: const EdgeInsets.all(16.0),
+          children: [
+            _buildStepper(),
+            const Divider(height: 48),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Unsynced Pairings",
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                if (_unsyncedPairings.isNotEmpty)
+                  _isSyncing 
+                  ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator())
+                  : TextButton.icon(
+                      onPressed: _syncPairings,
+                      icon: Icon(Icons.sync, size: 20, color: Theme.of(context).colorScheme.primary),
+                      label: Text("Sync", style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
                     ),
-                  ),
-                  const Divider(),
-                  const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Text("Unsynced Pairings:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  ),
-                  Expanded(
-                    child: _unsyncedPairings.isEmpty
-                        ? const Center(child: Text("No unsynced pairings found."))
-                        : ListView.builder(
-                            itemCount: _unsyncedPairings.length,
-                            itemBuilder: (context, index) {
-                              final pairing = _unsyncedPairings[index];
-                              final timestamp = DateTime.parse(pairing['timestamp']);
-                              return Card(
-                                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                                child: ListTile(
-                                  leading: const Icon(Icons.link),
-                                  title: Text("Device ${pairing['device_id']} » ${pairing['worker_name']}"),
-                                  subtitle: Text("Paired on: ${DateFormat.yMd().add_jm().format(timestamp)}"),
-                                ),
-                              );
-                            },
-                          ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _unsyncedPairings.isEmpty
+                    ? const Center(child: Padding(
+                        padding: EdgeInsets.all(32.0),
+                        child: Text("No unsynced pairings found.", style: TextStyle(color: Colors.grey)),
+                      ))
+                    : Card(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _unsyncedPairings.length,
+                          itemBuilder: (context, index) {
+                            final pairing = _unsyncedPairings[index];
+                            final timestamp = DateTime.parse(pairing['timestamp']);
+                            return ListTile(
+                              leading: const Icon(Icons.link),
+                              title: Text("Device ${pairing['device_id']} » ${pairing['worker_name']}"),
+                              subtitle: Text("Paired on: ${DateFormat.yMd().add_jm().format(timestamp)}"),
+                            );
+                          },
+                        ),
+                      ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepper() {
+    return Stepper(
+      currentStep: _currentStep,
+      onStepCancel: _onStepCancel,
+      onStepTapped: (step) => setState(() => _currentStep = step),
+      controlsBuilder: (context, details) {
+        return const SizedBox.shrink(); 
+      },
+      steps: [
+        Step(
+          title: const Text(AppStrings.pairingStep1Title),
+          subtitle: const Text("Scan QR code on the GPS device"),
+          isActive: _currentStep >= 0,
+          state: _scannedDeviceData != null ? StepState.complete : StepState.indexed,
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_scannedDeviceData != null)
+                Chip(
+                  avatar: const Icon(Icons.gps_fixed_rounded),
+                  label: Text("Device ID: ${_scannedDeviceData!['id']}"),
+                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                ),
+              const SizedBox(height: 8),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.qr_code_scanner),
+                label: Text(_scannedDeviceData != null ? "Rescan Device" : "Scan Device"),
+                onPressed: _scanDevice,
+              ),
+            ],
+          ),
+        ),
+        Step(
+          title: const Text(AppStrings.pairingStep2Title),
+          subtitle: const Text("Scan QR code on the worker's ID"),
+          isActive: _currentStep >= 1,
+           state: _scannedWorkerData != null ? StepState.complete : StepState.indexed,
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+               if (_scannedWorkerData != null)
+                Chip(
+                  avatar: const Icon(Icons.person_rounded),
+                  label: Text("Worker: ${_scannedWorkerData!['name'] ?? 'N/A'}"),
+                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                ),
+              const SizedBox(height: 8),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.qr_code_scanner),
+                label: Text(_scannedWorkerData != null ? "Rescan Worker" : "Scan Worker"),
+                onPressed: _scanWorker,
+              ),
+            ],
+          ),
+        ),
+        Step(
+          title: const Text("Confirm & Save"),
+          subtitle: const Text("Add a reason and save the pairing"),
+          isActive: _currentStep >= 2,
+          state: StepState.indexed,
+          content: Column(
+            children: [
+              TextFormField(
+                controller: _reasonController,
+                decoration: const InputDecoration(
+                  labelText: "Assignment Reason (Optional)",
+                  border: OutlineInputBorder(),
+                  hintText: "e.g., Replacement device",
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(onPressed: _resetStepper, child: const Text("Reset")),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _savePairing,
+                    child: const Text("Save Pairing"),
                   ),
                 ],
-              ),
-            ),
+              )
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

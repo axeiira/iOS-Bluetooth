@@ -1,107 +1,109 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:intl/intl.dart';
 
-class MapViewPage extends StatefulWidget {
+class MapViewPage extends StatelessWidget {
   final List<Map<String, dynamic>> records;
 
   const MapViewPage({super.key, required this.records});
 
   @override
-  State<MapViewPage> createState() => _MapViewPageState();
-}
-
-class _MapViewPageState extends State<MapViewPage> with TickerProviderStateMixin {
-  final MapController _mapController = MapController();
-  final List<LatLng> _points = [];
-  LatLngBounds? _bounds;
-
-  @override
-  void initState() {
-    super.initState();
-    _createRoute();
-  }
-
-  void _createRoute() {
-    if (widget.records.isEmpty) return;
-
-    for (var record in widget.records) {
-      _points.add(LatLng(
-        record['latitude'] as double,
-        record['longitude'] as double,
-      ));
-    }
-    
-    _bounds = LatLngBounds.fromPoints(_points);
-
-    setState(() {});
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final MapController mapController = MapController();
+    
+    List<LatLng> points = records.map((record) {
+      return LatLng(record['latitude'] as double, record['longitude'] as double);
+    }).toList();
+
+    LatLng? startPoint = points.isNotEmpty ? points.first : null;
+    LatLng? endPoint = points.isNotEmpty ? points.last : null;
+    LatLngBounds? bounds = points.isNotEmpty ? LatLngBounds.fromPoints(points) : null;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Route History"),
-        centerTitle: true,
-        backgroundColor: Colors.indigo,
+        title: const Text('Route History', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
       ),
-      body: _points.isEmpty
-          ? const Center(child: Text("No GPS data to display."))
-          : FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: _points.first, // posisi awal
-                initialZoom: 14.0,
-                onMapReady: () {
-                  if (_bounds != null) {
-                    _mapController.fitCamera(
-                      CameraFit.bounds(
-                        bounds: _bounds!,
-                        padding: const EdgeInsets.all(120.0),
-                      ),
-                    );
-                  }
-                },
+      body: FlutterMap(
+        mapController: mapController,
+        options: MapOptions(
+          initialCenter: startPoint ?? const LatLng(-6.2088, 106.8456),
+          initialZoom: 15.0,
+          onMapReady: () {
+            if (bounds != null) {
+              mapController.fitCamera(
+                CameraFit.bounds(
+                  bounds: bounds,
+                  padding: const EdgeInsets.all(50.0),
+                ),
+              );
+            }
+          }
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'com.example.cek',
+          ),
+          PolylineLayer(
+            polylines: [
+              Polyline(
+                points: points,
+                strokeWidth: 4.0,
+                color: Colors.blue.shade700,
               ),
-              children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  tileProvider: NetworkTileProvider(
-                    headers: {
-                      'User-Agent': 'com.example.cek',
-                    },
+            ],
+          ),
+          MarkerLayer(
+            markers: [
+              if (startPoint != null)
+                Marker(
+                  point: startPoint,
+                  width: 80,
+                  height: 80,
+                  child: const Tooltip(
+                    message: "Start Point",
+                    child: Icon(Icons.location_on, color: Colors.green, size: 40),
                   ),
                 ),
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: _points,
-                      color: Colors.blue,
-                      strokeWidth: 5,
-                    ),
-                  ],
+              if (endPoint != null)
+                Marker(
+                  point: endPoint,
+                  width: 80,
+                  height: 80,
+                  child: const Tooltip(
+                    message: "End Point",
+                    child: Icon(Icons.flag_rounded, color: Colors.red, size: 40),
+                  ),
                 ),
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point: _points.first,
-                      child: const Tooltip(
-                        message: "Start Point",
-                        child: Icon(Icons.location_on, size: 40.0, color: Colors.green),
-                      )
-                    ),
-                    Marker(
-                      point: _points.last,
-                      child: const Tooltip(
-                        message: "End Point",
-                        child: Icon(Icons.location_on, size: 40.0, color: Colors.red),
-                      )
-                    ),
-                  ],
-                ),
-              ],
+            ],
+          ),
+          if (points.isNotEmpty)
+            MarkerLayer(
+              markers: records.map((record) {
+                final timestamp = DateTime.parse(record['timestamp'] as String);
+                return Marker(
+                  width: 20.0,
+                  height: 20.0,
+                  point: LatLng(record['latitude'] as double, record['longitude'] as double),
+                  child: GestureDetector(
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Time: ${DateFormat('HH:mm:ss').format(timestamp)}"),
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                    child: Icon(Icons.circle, color: Colors.blue.shade900, size: 8),
+                  ),
+                );
+              }).toList(),
             ),
+        ],
+      ),
     );
   }
 }

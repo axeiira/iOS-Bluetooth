@@ -1,4 +1,3 @@
-// lib/pages/local_storage_page.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -78,7 +77,6 @@ class _LocalStoragePageState extends State<LocalStoragePage> {
     await Share.shareXFiles([XFile(path)], text: 'People Mobility Data Export for Device $deviceId');
   }
 
-  // FUNGSI UNTUK EKSPOR DATA DIKEMBALIKAN
   Future<void> _exportData() async {
     final csvData = await DatabaseHelper.instance.exportToCsv();
     if (csvData.isEmpty) {
@@ -123,7 +121,6 @@ class _LocalStoragePageState extends State<LocalStoragePage> {
                   const SizedBox(height: 8),
                   _buildDeviceSummaryList(),
                   const Divider(height: 48),
-                  // TOMBOL EKSPOR DIKEMBALIKAN
                   ElevatedButton.icon(
                     icon: const Icon(Icons.share_outlined),
                     label: const Text("Export All Data as CSV"),

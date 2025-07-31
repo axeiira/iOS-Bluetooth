@@ -16,24 +16,51 @@ class PeopleMobilityApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const primaryColor = Color(0xFF00796B);
+    const secondaryColor = Color(0xFFFFA000);
+    const backgroundColor = Color(0xFFF8F9FA);
+    const textColor = Color(0xFF212529);
+
     return MaterialApp(
       title: 'People Mobility',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.indigo,
-          primary: Colors.indigo.shade700,
-          secondary: Colors.cyan.shade600,
-          background: const Color(0xFFF5F7FA),
+        colorScheme: const ColorScheme(
+          brightness: Brightness.light,
+          primary: primaryColor,
+          onPrimary: Colors.white,
+          secondary: secondaryColor,
+          onSecondary: Colors.black,
+          error: Colors.redAccent,
+          onError: Colors.white,
+          background: backgroundColor,
+          onBackground: textColor,
+          surface: Colors.white,
+          onSurface: textColor,
         ),
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF5F7FA),
-        textTheme: GoogleFonts.poppinsTextTheme(Theme.of(context).textTheme),
+        scaffoldBackgroundColor: backgroundColor,
+        textTheme: GoogleFonts.poppinsTextTheme(Theme.of(context).textTheme).apply(
+          bodyColor: textColor,
+          displayColor: textColor,
+        ),
         cardTheme: CardThemeData(
-          elevation: 2,
+          elevation: 1.5,
+          color: Colors.white,
+          shadowColor: Colors.black.withOpacity(0.08),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: primaryColor,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          )
         ),
       ),
       home: const MainScreen(),

@@ -2,39 +2,26 @@ import 'package:flutter/material.dart';
 import '../utils/database_helper.dart';
 import 'sync_page.dart';
 import '../utils/sync_status_service.dart';
-
-class ActivityLog {
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-  final DateTime timestamp;
-
-  ActivityLog({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-    required this.timestamp,
-  });
-}
+import '../utils/app_strings.dart';
+import 'package:intl/intl.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
   @override
-  State<DashboardPage> createState() => DashboardPageState();
+  State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class DashboardPageState extends State<DashboardPage> {
+class _DashboardPageState extends State<DashboardPage> {
   int _unsyncedCount = 0;
   int _totalCount = 0;
-  List<ActivityLog> _recentActivities = [];
-
+  int _devicesTodayCount = 0;
+  DateTime? _lastSyncTime;
+  
   @override
   void initState() {
     super.initState();
-    refreshData();
+    _refreshData();
     SyncStatusService.instance.addListener(_onSyncStatusChanged);
   }
 
@@ -45,66 +32,34 @@ class DashboardPageState extends State<DashboardPage> {
   }
 
   void _onSyncStatusChanged() {
-    setState(() {
-    });
+    // Refresh data when sync status changes to reflect new counts
+    if (SyncStatusService.instance.value == SyncStatus.completed) {
+      Future.delayed(const Duration(seconds: 1), _refreshData);
+      setState(() {
+        _lastSyncTime = DateTime.now();
+      });
+    } else {
+      setState(() {});
+    }
   }
 
-
-  Future<void> refreshData() async {
-    await _loadDataSummary();
-    await _loadRecentActivities();
-  }
-
-  Future<void> _loadDataSummary() async {
+  Future<void> _refreshData() async {
     final unsynced = await DatabaseHelper.instance.countUnsyncedGpsData();
-    final allData = await DatabaseHelper.instance.getAllGpsData();
+    final total = await DatabaseHelper.instance.getAllGpsData();
+    final uniqueDevices = await DatabaseHelper.instance.getUniqueDeviceIds();
+
     if (mounted) {
       setState(() {
         _unsyncedCount = unsynced;
-        _totalCount = allData.length;
-      });
-    }
-  }
-
-  Future<void> _loadRecentActivities() async {
-    if (!mounted) return;
-
-    // 1. Dapatkan daftar semua perangkat unik
-    final deviceIds = await DatabaseHelper.instance.getUniqueDeviceIds();
-    
-    final List<ActivityLog> batchActivities = [];
-
-    // 2. Untuk setiap perangkat, dapatkan info sesi terakhirnya
-    for (String deviceId in deviceIds) {
-      final sessionInfo = await DatabaseHelper.instance.getLatestSessionInfoForDevice(deviceId);
-      if (sessionInfo != null) {
-        final timestamp = DateTime.parse(sessionInfo['latest_timestamp'] as String);
-        batchActivities.add(ActivityLog(
-          icon: Icons.add_location_alt_outlined,
-          iconColor: Colors.blue.shade700,
-          title: "Device $deviceId",
-          subtitle: "${sessionInfo['count']} records • ${_formatTimeAgo(timestamp)}",
-          timestamp: timestamp,
-        ));
-      }
-    }
-
-    // 3. Urutkan berdasarkan waktu aktivitas terakhir
-    batchActivities.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
-    if (mounted) {
-      setState(() {
-        _recentActivities = batchActivities.take(5).toList();
+        _totalCount = total.length;
+        _devicesTodayCount = uniqueDevices.length; 
       });
     }
   }
   
-  String _formatActivityTitle(String deviceId) {
-    return "Device $deviceId";
-  }
-
-  String _formatTimeAgo(DateTime dateTime) {
-    final duration = DateTime.now().difference(dateTime);
+  String _formatTimeAgo(DateTime? time) {
+    if (time == null) return "Never";
+    final duration = DateTime.now().difference(time);
     if (duration.inDays > 0) return '${duration.inDays}d ago';
     if (duration.inHours > 0) return '${duration.inHours}h ago';
     if (duration.inMinutes > 0) return '${duration.inMinutes}m ago';
@@ -116,129 +71,179 @@ class DashboardPageState extends State<DashboardPage> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            Image.asset('assets/images/logo.png', height: 32),
-            const SizedBox(width: 12),
-            const Text("People Mobility", style: TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
+        title: const Text(AppStrings.dashboardTitle, style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: ValueListenableBuilder<SyncStatus>(
-              valueListenable: SyncStatusService.instance,
-              builder: (context, status, child) {
-                switch (status) {
-                  case SyncStatus.syncing:
-                    return const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 3),
-                    );
-                  case SyncStatus.completed:
-                    return const Icon(Icons.cloud_done_outlined, color: Colors.green);
-                  case SyncStatus.error:
-                    return const Icon(Icons.cloud_off_outlined, color: Colors.red);
-                  default: // idle
-                    return const Icon(Icons.cloud_outlined, color: Colors.grey);
-                }
-              },
-            ),
-          ),
-        ],
       ),
       body: RefreshIndicator(
-        onRefresh: refreshData,
+        onRefresh: _refreshData,
         child: ListView(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
           children: [
-            Text("Welcome Back!", style: theme.textTheme.headlineSmall),
-            Text("Here is your data summary.", style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600)),
+            const Text(AppStrings.welcomeBack, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+            Text(AppStrings.dataSummary, style: theme.textTheme.titleMedium?.copyWith(color: Colors.grey.shade600)),
             const SizedBox(height: 24),
-            _buildSummaryCard(theme),
+            _buildSyncStatusCard(context),
             const SizedBox(height: 24),
-            Text("Recent Activity", style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            _buildRecentActivityList(),
+            _buildMetricsGrid(context),
+            const SizedBox(height: 24),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSummaryCard(ThemeData theme) {
+  Widget _buildSyncStatusCard(BuildContext context) {
+    final theme = Theme.of(context);
     return Card(
-      elevation: 4,
-      color: theme.colorScheme.primary,
+      elevation: 0,
+      color: theme.colorScheme.primary.withOpacity(0.05),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: theme.colorScheme.primary.withOpacity(0.2)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildStatusMetric("Total Records", _totalCount.toString(), Colors.white),
-            Container(width: 1, height: 50, color: Colors.white.withOpacity(0.5)),
-            InkWell(
-              onTap: () async {
-                await Navigator.push(context, MaterialPageRoute(builder: (context) => const SyncPage()));
-                refreshData();
-              },
-              child: _buildStatusMetric("Unsynced", _unsyncedCount.toString(), Colors.white, isWarning: _unsyncedCount > 0),
-            ),
-          ],
+        padding: const EdgeInsets.all(16.0),
+        child: ValueListenableBuilder<SyncStatus>(
+          valueListenable: SyncStatusService.instance,
+          builder: (context, status, child) {
+            IconData icon;
+            String title;
+            String subtitle;
+            Color iconColor;
+
+            switch (status) {
+              case SyncStatus.syncing:
+                icon = Icons.sync_rounded;
+                title = "Syncing in Progress...";
+                subtitle = "Please keep the app open.";
+                iconColor = theme.colorScheme.secondary;
+                break;
+              case SyncStatus.completed:
+                icon = Icons.cloud_done_rounded;
+                title = "All Data is Up to Date";
+                subtitle = "${AppStrings.lastSync}: ${_formatTimeAgo(_lastSyncTime)}";
+                iconColor = theme.colorScheme.primary;
+                break;
+              case SyncStatus.error:
+                icon = Icons.error_outline_rounded;
+                title = "Sync Failed";
+                subtitle = "Please check your connection and try again.";
+                iconColor = theme.colorScheme.error;
+                break;
+              default:
+                icon = Icons.cloud_upload_rounded;
+                title = "Ready to Sync";
+                subtitle = "$_unsyncedCount records waiting to be sent.";
+                iconColor = theme.colorScheme.secondary;
+            }
+
+            return Row(
+              children: [
+                if (status == SyncStatus.syncing)
+                  const CircularProgressIndicator()
+                else
+                  Icon(icon, size: 40, color: iconColor),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      Text(subtitle, style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700)),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildStatusMetric(String title, String value, Color color, {bool isWarning = false}) {
-    return Column(
+  Widget _buildMetricsGrid(BuildContext context) {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      childAspectRatio: 1.1,
       children: [
-        Text(value, style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: color)),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            if (isWarning)
-              Padding(
-                padding: const EdgeInsets.only(right: 4.0),
-                child: Icon(Icons.warning_amber_rounded, color: Colors.yellow.shade600, size: 16),
-              ),
-            Text(title, style: TextStyle(fontSize: 14, color: color.withOpacity(0.8))),
-          ],
+        _buildMetricCard(
+          context: context,
+          icon: Icons.error_outline_rounded,
+          label: AppStrings.unsyncedRecords,
+          value: _unsyncedCount.toString(),
+          color: Theme.of(context).colorScheme.secondary,
+          onTap: () async {
+             await Navigator.push(context, MaterialPageRoute(builder: (context) => const SyncPage()));
+             _refreshData();
+          }
+        ),
+        _buildMetricCard(
+          context: context,
+          icon: Icons.storage_rounded,
+          label: AppStrings.totalRecords,
+          value: _totalCount.toString(),
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        _buildMetricCard(
+          context: context,
+          icon: Icons.devices_other_rounded,
+          label: "Devices Today",
+          value: _devicesTodayCount.toString(),
+          color: Colors.blue.shade700,
+        ),
+        _buildMetricCard(
+          context: context,
+          icon: Icons.timer_rounded,
+          label: AppStrings.lastSync,
+          value: _formatTimeAgo(_lastSyncTime),
+          color: Colors.grey.shade700,
         ),
       ],
     );
   }
 
- Widget _buildRecentActivityList() {
-    if (_recentActivities.isEmpty) {
-      return const Card(
-        child: ListTile(
-          leading: CircleAvatar(child: Icon(Icons.info_outline)),
-          title: Text("No Recent Activity"),
-          subtitle: Text("Data received from devices will appear here."),
-        ),
-      );
-    }
+  Widget _buildMetricCard({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    final theme = Theme.of(context);
     return Card(
-      child: ListView.separated(
-        physics: const NeverScrollableScrollPhysics(),
-        shrinkWrap: true,
-        itemCount: _recentActivities.length,
-        itemBuilder: (context, index) {
-          final activity = _recentActivities[index];
-          return ListTile(
-            leading: CircleAvatar(
-              backgroundColor: activity.iconColor.withOpacity(0.1),
-              child: Icon(activity.icon, color: activity.iconColor),
-            ),
-            title: Text(activity.title, overflow: TextOverflow.ellipsis),
-            subtitle: Text(activity.subtitle),
-          );
-        },
-        separatorBuilder: (context, index) => const Divider(height: 1, indent: 16, endIndent: 16),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: color.withOpacity(0.1),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, size: 28, color: color),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold, color: color),
+                  ),
+                  Text(label, style: theme.textTheme.bodyMedium?.copyWith(color: color.withOpacity(0.9))),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
