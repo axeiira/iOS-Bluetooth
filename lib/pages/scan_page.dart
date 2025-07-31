@@ -52,6 +52,7 @@ class _ScanPageState extends State<ScanPage> with SingleTickerProviderStateMixin
 
   Future<void> _startScan() async {
     HapticFeedback.lightImpact();
+    _animationController.reset();
     await FlutterBluePlus.startScan(timeout: const Duration(seconds: 10));
   }
   
@@ -75,13 +76,29 @@ class _ScanPageState extends State<ScanPage> with SingleTickerProviderStateMixin
       ) ?? false;
 
       if (syncCompleted && mounted) {
-        widget.navigateToTab(2); // Pindah ke tab History (index 2)
+        widget.navigateToTab(3); // Pindah ke tab History (index 3)
       }
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Connection Failed: $e")));
     }
+  }
+
+  Widget _buildRssiIndicator(int rssi) {
+    IconData icon;
+    Color color;
+    if (rssi > -65) {
+      icon = Icons.signal_cellular_alt_rounded;
+      color = Colors.green;
+    } else if (rssi > -80) {
+      icon = Icons.signal_cellular_alt_2_bar_rounded;
+      color = Colors.orange;
+    } else {
+      icon = Icons.signal_cellular_alt_1_bar_rounded;
+      color = Colors.red.shade400;
+    }
+    return Icon(icon, color: color);
   }
 
   @override
@@ -141,7 +158,14 @@ class _ScanPageState extends State<ScanPage> with SingleTickerProviderStateMixin
                 leading: const CircleAvatar(child: Icon(Icons.bluetooth)),
                 title: Text(result.device.platformName),
                 subtitle: Text(result.device.remoteId.str),
-                trailing: Text("${result.rssi} dBm"),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildRssiIndicator(result.rssi),
+                    const SizedBox(width: 8),
+                    Text("${result.rssi} dBm", style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                  ],
+                ),
                 onTap: () => _connectToDevice(result.device),
               ),
             ),

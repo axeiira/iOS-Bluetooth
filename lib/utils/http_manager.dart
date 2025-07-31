@@ -53,8 +53,12 @@ class HttpManager {
   }
 
   Future<SendResult> sendPairings(List<Map<String, dynamic>> pairingsList) async {
-    // sesuaikan URL
-    final String assignUrl = "http://192.168.17.210:6432/api/device-assignments/assign"; 
+    // Ambil base URL dari settings service
+    final String baseTelemetryUrl = await _settingsService.getBaseUrl();
+    final Uri baseUri = Uri.parse(baseTelemetryUrl);
+    
+    // buat URL pairing yang benar
+    final String assignUrl = baseUri.replace(path: '/api/device-assignments/assign').toString();
     
     try {
       String jsonData = jsonEncode(pairingsList);
