@@ -1,11 +1,40 @@
 import 'package:flutter/material.dart';
-import '../utils/database_helper.dart';
 import '../utils/app_strings.dart';
 import 'local_storage_page.dart';
 import 'server_configuration_page.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
+
+  // Fungsi untuk membersihkan cache dan file sementara
+  Future<void> _clearAllCachesAndTempFiles(BuildContext context) async {
+    await DefaultCacheManager().emptyCache();
+
+    final tempDir = await getTemporaryDirectory();
+    if (tempDir.existsSync()) {
+      tempDir.listSync().forEach((var entity) {
+        if (entity is File) {
+          try {
+            entity.deleteSync();
+          } catch (e) {
+            print("Error deleting temp file: $e");
+          }
+        }
+      });
+    }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("All caches and temporary files have been cleared."),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,6 +48,7 @@ class SettingsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
+          // General Settings Section
           _buildSectionHeader(context, "General"),
           Card(
             child: Column(
@@ -40,10 +70,19 @@ class SettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
+          // Data Management Section
           _buildSectionHeader(context, "Data Management"),
           Card(
             child: Column(
               children: [
+                _buildListTile(
+                  context,
+                  icon: Icons.cleaning_services_rounded,
+                  title: "Clear Caches & Temp Files",
+                  subtitle: "Free up space from map and export files",
+                  onTap: () => _clearAllCachesAndTempFiles(context),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
                 _buildListTile(
                   context,
                   icon: Icons.storage_rounded,
@@ -56,20 +95,12 @@ class SettingsPage extends StatelessWidget {
                     );
                   },
                 ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                 _buildListTile(
-                  context,
-                  icon: Icons.delete_sweep_rounded,
-                  iconColor: theme.colorScheme.error,
-                  title: "Clear All Local Data",
-                  subtitle: "Delete all records from this device",
-                  onTap: () => _showDeleteConfirmationDialog(context),
-                ),
               ],
             ),
           ),
-           const SizedBox(height: 24),
+          const SizedBox(height: 24),
           
+          // About Section
            _buildSectionHeader(context, "About"),
            Card(
             child: Column(
@@ -78,7 +109,7 @@ class SettingsPage extends StatelessWidget {
                   context,
                   icon: Icons.info_rounded,
                   title: "About ${AppStrings.appName}",
-                  subtitle: "Version 2.0.0 (Development Version)",
+                  subtitle: "Version 2.0.0 (Redesigned)",
                   onTap: () => _showAboutDialog(context),
                 ),
               ],
@@ -124,38 +155,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  Future<void> _showDeleteConfirmationDialog(BuildContext context) async {
-    final bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text("Delete All Data?"),
-          content: const Text("This action cannot be undone and will permanently delete all logs from your device."),
-          actions: <Widget>[
-            TextButton(
-              child: const Text("Cancel"),
-              onPressed: () => Navigator.of(context).pop(false),
-            ),
-            TextButton(
-              style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-              child: const Text("Delete All"),
-              onPressed: () => Navigator.of(context).pop(true),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirm == true && context.mounted) {
-      await DatabaseHelper.instance.deleteAllData();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("All local data has been deleted."),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
 
   void _showAboutDialog(BuildContext context) {
     showDialog(
@@ -166,7 +165,7 @@ class SettingsPage extends StatelessWidget {
           content: const SingleChildScrollView(
             child: ListBody(
               children: <Widget>[
-                Text("Version: Development Version"),
+                Text("Version: 2.0.0 (Redesigned)"),
                 SizedBox(height: 8),
                 Text("Developed by: PT Mioto Agung Mobilitas"),
                 SizedBox(height: 8),

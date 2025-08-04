@@ -214,7 +214,9 @@ class DatabaseHelper {
   Future<void> deleteAllData() async {
     Database db = await instance.database;
     await db.delete('gps_data');
-    print("REAL: All GPS data deleted.");
+    await db.delete('pairings');
+    await db.execute('VACUUM');
+    print("REAL: All data deleted and database vacuumed.");
   }
 
   // Mengambil unsynced GPS data per perangkat
@@ -364,19 +366,19 @@ class DatabaseHelper {
   Future<int> deleteOldData() async {
     final db = await instance.database;
     
-    // get tanggal 30 hari yang lalu terhitung sejak waktu sekarang
-    final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
-    final timestampString = thirtyDaysAgo.toIso8601String();
+    const int retentionDays = 7;  // hardcoded
+    
+    final cutoffDate = DateTime.now().subtract(const Duration(days: retentionDays));
+    final timestampString = cutoffDate.toIso8601String();
 
-    // delete
     final count = await db.delete(
       'gps_data',
-      where: 'timestamp < ?',
+      where: 'is_synced = 1 AND timestamp < ?',
       whereArgs: [timestampString],
     );
     
     if (count > 0) {
-      print("REAL: Auto-deleted $count records older than 30 days.");
+      print("REAL: Auto-deleted $count synced records older than $retentionDays days.");
     }
     return count;
   }
