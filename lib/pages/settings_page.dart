@@ -109,7 +109,7 @@ class SettingsPage extends StatelessWidget {
                   context,
                   icon: Icons.info_rounded,
                   title: "About ${AppStrings.appName}",
-                  subtitle: "Version 2.0.0 (Redesigned)",
+                  subtitle: "Version 2.0.0 (Development Version)",
                   onTap: () => _showAboutDialog(context),
                 ),
               ],
@@ -165,7 +165,7 @@ class SettingsPage extends StatelessWidget {
           content: const SingleChildScrollView(
             child: ListBody(
               children: <Widget>[
-                Text("Version: 2.0.0 (Redesigned)"),
+                Text("Version: 2.0.0 (Development Version)"),
                 SizedBox(height: 8),
                 Text("Developed by: PT Mioto Agung Mobilitas"),
                 SizedBox(height: 8),
