@@ -16,7 +16,7 @@ class PeopleMobilityApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF00796B);
+    const primaryColor = Color(0xFF006FDD);
     const secondaryColor = Color(0xFFFFA000);
     const backgroundColor = Color(0xFFF8F9FA);
     const textColor = Color(0xFF212529);
