@@ -80,28 +80,6 @@ class MapViewPage extends StatelessWidget {
                 ),
             ],
           ),
-          if (points.isNotEmpty)
-            MarkerLayer(
-              markers: records.map((record) {
-                final timestamp = DateTime.parse(record['timestamp'] as String);
-                return Marker(
-                  width: 20.0,
-                  height: 20.0,
-                  point: LatLng(record['latitude'] as double, record['longitude'] as double),
-                  child: GestureDetector(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text("Time: ${DateFormat('HH:mm:ss').format(timestamp)}"),
-                          duration: const Duration(seconds: 1),
-                        ),
-                      );
-                    },
-                    child: Icon(Icons.circle, color: Colors.blue.shade900, size: 8),
-                  ),
-                );
-              }).toList(),
-            ),
         ],
       ),
     );
