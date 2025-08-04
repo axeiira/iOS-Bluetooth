@@ -20,6 +20,15 @@ class HistoryPageState extends State<HistoryPage> {
   List<Map<String, dynamic>> _selectedDayEvents = [];
   bool _isLoading = true;
 
+  final List<Color> _markerColors = [
+    const Color(0xFF006FDD),
+    const Color(0xFFFFA000),
+    Colors.teal.shade700,
+    Colors.grey.shade700,
+    const Color(0xFFC2185B),
+    const Color(0xFF512DA8),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -59,6 +68,11 @@ class HistoryPageState extends State<HistoryPage> {
         _selectedDayEvents = _events[DateTime(selectedDay.year, selectedDay.month, selectedDay.day)] ?? [];
       });
     }
+  }
+
+  Color _getColorForDeviceId(String deviceId) {
+    final index = deviceId.hashCode % _markerColors.length;
+    return _markerColors[index];
   }
 
   @override
@@ -103,6 +117,7 @@ class HistoryPageState extends State<HistoryPage> {
           color: Theme.of(context).colorScheme.primary,
           shape: BoxShape.circle,
         ),
+        markerDecoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
       ),
       headerStyle: const HeaderStyle(
         formatButtonVisible: false,
@@ -111,14 +126,29 @@ class HistoryPageState extends State<HistoryPage> {
       calendarBuilders: CalendarBuilders(
         markerBuilder: (context, day, events) {
           if (events.isNotEmpty) {
-            // heatmap style
-            final maxEvents = _events.values.map((e) => e.length).fold(0, (a, b) => a > b ? a : b);
-            final intensity = (events.length / (maxEvents == 0 ? 1 : maxEvents)).clamp(0.2, 1.0);
-            return Container(
-              margin: const EdgeInsets.all(4.0),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(intensity),
-                shape: BoxShape.circle,
+            final deviceIds = events
+                .map((e) => (e as Map<String, dynamic>)['device_id'] as String)
+                .toSet()
+                .toList();
+            
+            return Positioned(
+              right: 1,
+              left: 1,
+              bottom: 5,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: deviceIds.take(4).map((deviceId) {
+                  return Container(
+                    width: 7,
+                    height: 7,
+                    margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _getColorForDeviceId(deviceId),
+                    ),
+                  );
+                }).toList(),
               ),
             );
           }
@@ -146,8 +176,8 @@ class HistoryPageState extends State<HistoryPage> {
         final records = entry.value;
         
         records.sort((a, b) => (a['timestamp'] as String).compareTo(b['timestamp'] as String));
-        final startTime = DateFormat.jm().format(DateTime.parse(records.first['timestamp']));
-        final endTime = DateFormat.jm().format(DateTime.parse(records.last['timestamp']));
+        final startTime = DateFormat.jm().format(DateTime.parse(records.first['timestamp']!));
+        final endTime = DateFormat.jm().format(DateTime.parse(records.last['timestamp']!));
 
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 8),
@@ -216,11 +246,6 @@ class HistoryPageState extends State<HistoryPage> {
       decoration: BoxDecoration(
         color: Colors.grey.shade200,
         borderRadius: BorderRadius.circular(12),
-        image: const DecorationImage(
-          image: AssetImage('assets/images/map_placeholder.png'),
-          fit: BoxFit.cover,
-          opacity: 0.3,
-        )
       ),
       child: Icon(Icons.route_rounded, color: Theme.of(context).colorScheme.primary.withOpacity(0.7), size: 40),
     );
