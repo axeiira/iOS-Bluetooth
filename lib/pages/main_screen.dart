@@ -39,7 +39,7 @@ class _MainScreenState extends State<MainScreen> {
 
   // Fungsi untuk berpindah tab dan merefresh halaman riwayat
   void _navigateToTab(int index) {
-    if (index == 2) { // Index 2: HistoryPage
+    if (index == 3) { // Index 2: HistoryPage
       _historyPageKey.currentState?.refreshData();
     }
     setState(() {
