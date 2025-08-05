@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../utils/route_analyzer.dart';
+import '../utils/map_tile_provider.dart';
 
 class MapViewPage extends StatefulWidget {
   final List<Map<String, dynamic>> records;
@@ -73,6 +74,7 @@ class _MapViewPageState extends State<MapViewPage> {
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.example.cek',
+                tileProvider: CustomCachedTileProvider(),
               ),
               PolylineLayer(
                 polylines: [
