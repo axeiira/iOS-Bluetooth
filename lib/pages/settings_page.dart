@@ -2,37 +2,97 @@ import 'package:flutter/material.dart';
 import '../utils/app_strings.dart';
 import 'local_storage_page.dart';
 import 'server_configuration_page.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import '../utils/database_helper.dart';
+import 'package:path/path.dart' as p;
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
-  // Fungsi untuk membersihkan cache dan file sementara
-  Future<void> _clearAllCachesAndTempFiles(BuildContext context) async {
-    await DefaultCacheManager().emptyCache();
+  Future<void> _showDeleteConfirmationDialog(BuildContext context) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Delete All Data?"),
+          content: const Text("This action cannot be undone and will permanently delete all logs from your device."),
+          actions: <Widget>[
+            TextButton(
+              child: const Text("Cancel"),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+              child: const Text("Delete All"),
+              onPressed: () {
+                 DatabaseHelper.instance.deleteAllData();
+                 Navigator.of(context).pop(true);
+              }
+            ),
+          ],
+        );
+      },
+    );
 
-    final tempDir = await getTemporaryDirectory();
-    if (tempDir.existsSync()) {
-      tempDir.listSync().forEach((var entity) {
-        if (entity is File) {
-          try {
-            entity.deleteSync();
-          } catch (e) {
-            print("Error deleting temp file: $e");
-          }
-        }
-      });
-    }
-
-    if (context.mounted) {
+    if (confirm == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("All caches and temporary files have been cleared."),
+          content: Text("All local data has been deleted."),
           behavior: SnackBarBehavior.floating,
         ),
       );
+    }
+  }
+
+  // Fungsi untuk membersihkan cache dan file sementara
+  Future<void> _clearAllCachesAndTempFiles(BuildContext context) async {
+    try {
+      // Dapatkan path ke semua directory yang relevan
+      final tempDir = await getTemporaryDirectory();
+      final appSupportDir = await getApplicationSupportDirectory();
+
+      // debug
+      print("--- STORAGE DIAGNOSTICS ---");
+      print("Temporary Directory Path: ${tempDir.path}");
+      print("Application Support Directory Path: ${appSupportDir.path}");
+      print("---------------------------");
+
+      const cacheFolderName = 'mapCacheKey';
+
+      // list directories yang akan dihapus
+      final directoriesToCheck = [
+        Directory(p.join(tempDir.path, cacheFolderName)),
+        Directory(p.join(appSupportDir.path, cacheFolderName)),
+        Directory(p.join(appSupportDir.path, 'libCachedImageData')),
+      ];
+
+      // Hapus semua direktori cache yang ditemukan
+      for (var dir in directoriesToCheck) {
+        if (await dir.exists()) {
+          await dir.delete(recursive: true);
+          print("Deleted cache directory: ${dir.path}");
+        }
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("All caches and temporary files have been cleared."),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      print("Error clearing caches: $e");
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Failed to clear caches."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -94,6 +154,15 @@ class SettingsPage extends StatelessWidget {
                       MaterialPageRoute(builder: (context) => const LocalStoragePage()),
                     );
                   },
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                 _buildListTile(
+                  context,
+                  icon: Icons.delete_sweep_rounded,
+                  iconColor: theme.colorScheme.error,
+                  title: "Clear All Local Data",
+                  subtitle: "Delete all records from the database",
+                  onTap: () => _showDeleteConfirmationDialog(context),
                 ),
               ],
             ),

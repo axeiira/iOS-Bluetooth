@@ -5,14 +5,15 @@ import 'package:flutter_map/flutter_map.dart';
 
 const _mapCacheKey = 'mapCacheKey';
 
-// cache manager config
-final _myCacheManager = CacheManager(
-  Config(
-    _mapCacheKey,
-    stalePeriod: const Duration(days: 7), // expired in 7 days
-    maxNrOfCacheObjects: 500, // batas jumlah file cache 500 ubin
-  ),
-);
+class MyCacheManager {
+  static final custom = CacheManager(
+    Config(
+      _mapCacheKey,
+      stalePeriod: const Duration(days: 7), // expired in 7 days
+      maxNrOfCacheObjects: 500, // batas jumlah file cache 500 ubin
+    ),
+  );
+}
 
 class CustomCachedTileProvider extends TileProvider {
   CustomCachedTileProvider();
@@ -21,7 +22,7 @@ class CustomCachedTileProvider extends TileProvider {
   ImageProvider getImage(TileCoordinates coords, TileLayer options) {
     return CachedNetworkImageProvider(
       getTileUrl(coords, options),
-      cacheManager: _myCacheManager,
+      cacheManager: MyCacheManager.custom,
     );
   }
 }

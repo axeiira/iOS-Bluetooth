@@ -153,7 +153,7 @@ class _LocalStoragePageState extends State<LocalStoragePage> {
             const ListTile(
               leading: Icon(Icons.policy_outlined, color: Colors.blue),
               title: Text("Data Retention Policy"),
-              subtitle: Text("Local data older than 30 days is automatically deleted."),
+              subtitle: Text("Local data older than 7 days is automatically deleted."),
             ),
           ],
         ),
