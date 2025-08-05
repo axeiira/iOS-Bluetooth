@@ -72,8 +72,7 @@ class RouteAnalyzer {
         cos((latLng2.latitude - latLng1.latitude) * p) / 2 +
         cos(latLng1.latitude * p) *
             cos(latLng2.latitude * p) *
-            (1 - cos((latLng2.longitude - latLng1.longitude) * p)) /
-            2;
+            (1 - cos((latLng2.longitude - latLng1.longitude) * p)) / 2;
     return 12742 * asin(sqrt(a)) * 1000;
   }
 }
