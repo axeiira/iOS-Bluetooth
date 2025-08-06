@@ -1,22 +1,24 @@
-import 'package:flutter/material.dart';
-import '../utils/app_strings.dart';
-import 'local_storage_page.dart';
-import 'server_configuration_page.dart';
-import 'package:path_provider/path_provider.dart';
 import 'dart:io';
-import '../utils/database_helper.dart';
+import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import '../utils/app_strings.dart';
+import '../utils/auth_service.dart';
+import 'local_storage_page.dart';
+import 'login_page.dart';
+import 'server_configuration_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
-  Future<void> _showDeleteConfirmationDialog(BuildContext context) async {
+  // confirm logout dialog
+  Future<void> _showLogoutConfirmationDialog(BuildContext context) async {
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text("Delete All Data?"),
-          content: const Text("This action cannot be undone and will permanently delete all logs from your device."),
+          title: const Text("Logout"),
+          content: const Text("Are you sure you want to log out?"),
           actions: <Widget>[
             TextButton(
               child: const Text("Cancel"),
@@ -24,11 +26,8 @@ class SettingsPage extends StatelessWidget {
             ),
             TextButton(
               style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-              child: const Text("Delete All"),
-              onPressed: () {
-                 DatabaseHelper.instance.deleteAllData();
-                 Navigator.of(context).pop(true);
-              }
+              child: const Text("Logout"),
+              onPressed: () => Navigator.of(context).pop(true),
             ),
           ],
         );
@@ -36,11 +35,12 @@ class SettingsPage extends StatelessWidget {
     );
 
     if (confirm == true && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("All local data has been deleted."),
-          behavior: SnackBarBehavior.floating,
-        ),
+      final authService = AuthService();
+      await authService.logout();
+      
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+        (Route<dynamic> route) => false,
       );
     }
   }
@@ -48,30 +48,19 @@ class SettingsPage extends StatelessWidget {
   // Fungsi untuk membersihkan cache dan file sementara
   Future<void> _clearAllCachesAndTempFiles(BuildContext context) async {
     try {
-      // Dapatkan path ke semua directory yang relevan
       final tempDir = await getTemporaryDirectory();
       final appSupportDir = await getApplicationSupportDirectory();
-
-      // debug
-      print("--- STORAGE DIAGNOSTICS ---");
-      print("Temporary Directory Path: ${tempDir.path}");
-      print("Application Support Directory Path: ${appSupportDir.path}");
-      print("---------------------------");
-
       const cacheFolderName = 'mapCacheKey';
 
-      // list directories yang akan dihapus
       final directoriesToCheck = [
         Directory(p.join(tempDir.path, cacheFolderName)),
         Directory(p.join(appSupportDir.path, cacheFolderName)),
         Directory(p.join(appSupportDir.path, 'libCachedImageData')),
       ];
 
-      // Hapus semua direktori cache yang ditemukan
       for (var dir in directoriesToCheck) {
         if (await dir.exists()) {
           await dir.delete(recursive: true);
-          print("Deleted cache directory: ${dir.path}");
         }
       }
 
@@ -85,14 +74,6 @@ class SettingsPage extends StatelessWidget {
       }
     } catch (e) {
       print("Error clearing caches: $e");
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Failed to clear caches."),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
     }
   }
 
@@ -108,7 +89,7 @@ class SettingsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          // General Settings Section
+          // Bagian General
           _buildSectionHeader(context, "General"),
           Card(
             child: Column(
@@ -130,7 +111,7 @@ class SettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // Data Management Section
+          // Bagian Data Management
           _buildSectionHeader(context, "Data Management"),
           Card(
             child: Column(
@@ -155,31 +136,22 @@ class SettingsPage extends StatelessWidget {
                     );
                   },
                 ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                 _buildListTile(
-                  context,
-                  icon: Icons.delete_sweep_rounded,
-                  iconColor: theme.colorScheme.error,
-                  title: "Clear All Local Data",
-                  subtitle: "Delete all records from the database",
-                  onTap: () => _showDeleteConfirmationDialog(context),
-                ),
               ],
             ),
           ),
           const SizedBox(height: 24),
           
-          // About Section
-           _buildSectionHeader(context, "About"),
-           Card(
+          _buildSectionHeader(context, "Account"),
+          Card(
             child: Column(
               children: [
-                 _buildListTile(
+                _buildListTile(
                   context,
-                  icon: Icons.info_rounded,
-                  title: "About ${AppStrings.appName}",
-                  subtitle: "Version 2.0.0 (Development Version)",
-                  onTap: () => _showAboutDialog(context),
+                  icon: Icons.logout_rounded,
+                  iconColor: theme.colorScheme.error,
+                  title: "Logout",
+                  subtitle: "End your current session",
+                  onTap: () => _showLogoutConfirmationDialog(context),
                 ),
               ],
             ),
@@ -221,35 +193,6 @@ class SettingsPage extends StatelessWidget {
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: Text(subtitle, style: TextStyle(color: Colors.grey.shade600)),
       onTap: onTap,
-    );
-  }
-
-
-  void _showAboutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text("About ${AppStrings.appName}"),
-          content: const SingleChildScrollView(
-            child: ListBody(
-              children: <Widget>[
-                Text("Version: 2.0.0 (Development Version)"),
-                SizedBox(height: 8),
-                Text("Developed by: PT Mioto Agung Mobilitas"),
-                SizedBox(height: 8),
-                Text("An IoT data collector application for agricultural industry needs."),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Close'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ],
-        );
-      },
     );
   }
 }

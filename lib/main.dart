@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'pages/main_screen.dart';
 import 'utils/database_helper.dart';
+import 'pages/splash_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,7 +63,7 @@ class PeopleMobilityApp extends StatelessWidget {
           )
         ),
       ),
-      home: const MainScreen(),
+      home: const SplashPage(),
     );
   }
 }
