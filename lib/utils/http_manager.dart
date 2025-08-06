@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'settings_service.dart';
+import 'auth_service.dart';
 
 class SendResult {
   final bool success;
@@ -11,31 +12,36 @@ class SendResult {
 
 class HttpManager {
   final SettingsService _settingsService = SettingsService();
+  final AuthService _authService = AuthService(); // Tambahkan instance AuthService
+
+  // Fungsi untuk mendapatkan header dengan token autentikasi
+  Future<Map<String, String>> _getHeaders() async {
+    final token = await _authService.getToken();
+    return {
+      'Content-Type': 'application/json; charset=UTF-8',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
 
   Future<SendResult> sendBulkData(List<Map<String, dynamic>> telemetryList) async {
     final String baseUrl = await _settingsService.getBaseUrl();
     
     try {
       String jsonData = jsonEncode(telemetryList);
-      print("===================================");
-      print("REAL: Mengirim BATCH DATA ke Server...");
-      print("REAL: URL: $baseUrl");
-      print("REAL: Total Records: ${telemetryList.length}");
-      print("===================================");
+      final headers = await _getHeaders(); // Dapatkan header dengan token
 
       final response = await http.post(
         Uri.parse(baseUrl),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
+        headers: headers, // Gunakan header yang sudah ada tokennya
         body: jsonData,
-      ).timeout(const Duration(seconds: 60)); // Timeout lebih lama untuk data besar
+      ).timeout(const Duration(seconds: 60));
 
-      if (response.statusCode == 201) {
+      if (response.statusCode == 201 || response.statusCode == 202) {
         final responseBody = jsonDecode(response.body);
-        final count = responseBody['count'] ?? 0;
-        print("REAL: Batch data berhasil dikirim. Server response: ${response.body}");
-        return SendResult(success: true, message: "Batch data berhasil dikirim.", count: count);
+        // Coba dapatkan 'count' dari respons, jika tidak ada, hitung dari data yang dikirim
+        final count = responseBody['count'] ?? telemetryList.length;
+        print("REAL: Batch data berhasil diterima oleh server. Server response: ${response.body}");
+        return SendResult(success: true, message: "Batch data berhasil diterima oleh server.", count: count);
       } else {
         print("REAL: Server merespon dengan error. Status: ${response.statusCode}\nBody: ${response.body}");
         return SendResult(
@@ -53,31 +59,23 @@ class HttpManager {
   }
 
   Future<SendResult> sendPairings(List<Map<String, dynamic>> pairingsList) async {
-    // Ambil base URL dari settings service
     final String baseTelemetryUrl = await _settingsService.getBaseUrl();
     final Uri baseUri = Uri.parse(baseTelemetryUrl);
-    
-    // buat URL pairing yang benar
     final String assignUrl = baseUri.replace(path: '/api/device-assignments/assign').toString();
     
     try {
       String jsonData = jsonEncode(pairingsList);
-      print("===================================");
-      print("REAL: Mengirim BATCH PAIRING ke Server...");
-      print("REAL: URL: $assignUrl");
-      print("REAL: Payload: $jsonData");
-      print("===================================");
+      final headers = await _getHeaders(); // Dapatkan header dengan token
 
       final response = await http.post(
         Uri.parse(assignUrl),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
+        headers: headers, // Gunakan header yang sudah ada tokennya
         body: jsonData,
       ).timeout(const Duration(seconds: 30));
 
-      if (response.statusCode == 201) {
-        print("REAL: Batch pairing berhasil dikirim. Server response: ${response.body}");
+      // Anggap sukses jika status code adalah 201 (Created) ATAU 202 (Accepted)
+      if (response.statusCode == 201 || response.statusCode == 202) {
+        print("REAL: Batch pairing berhasil diterima oleh server. Server response: ${response.body}");
         return SendResult(success: true, message: "Pairings sent successfully.");
       } else {
         print("REAL: Server merespon dengan error. Status: ${response.statusCode}\nBody: ${response.body}");
@@ -93,14 +91,5 @@ class HttpManager {
         message: "Network Error: ${e.toString()}",
       );
     }
-  }
-
-  Future<void> sendNotificationToDashboard({
-    required String deviceId,
-    required int totalRecordsSent,
-    required String status,
-    String? errorMessage,
-  }) async {
-    // TODO
   }
 }
