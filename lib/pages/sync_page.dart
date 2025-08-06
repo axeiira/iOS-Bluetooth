@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../utils/database_helper.dart';
 import '../utils/http_manager.dart';
@@ -49,10 +48,11 @@ class _SyncPageState extends State<SyncPage> {
         _statusMessage = "No unsynced data found for $syncTargetName.";
         _syncingDeviceId = null;
       });
+      SyncStatusService.instance.updateStatus(SyncStatus.idle);
       return;
     }
 
-    const int chunkSize = 400; // jumlah record per chunk
+    const int chunkSize = 400;
     int totalRecordsSent = 0;
     bool anyChunkFailed = false;
     String finalErrorMessage = "";
@@ -76,6 +76,7 @@ class _SyncPageState extends State<SyncPage> {
           'batteryPercentage': data['battery_percentage'],
           'eventTagging': data['tag_button'] == 1,
           'geofenceStatus': data['geofence_status'] == 1,
+          'speed': data['speed'],
         };
       }).toList();
 
@@ -88,7 +89,7 @@ class _SyncPageState extends State<SyncPage> {
       } else {
         anyChunkFailed = true;
         finalErrorMessage = result.message;
-        break; // jika ada chunk yang gagal, hentikan proses
+        break;
       }
       
       setState(() {
