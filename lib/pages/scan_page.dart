@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import '../utils/app_strings.dart';
 import '../utils/database_helper.dart';
 import 'dart:io';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 
 class ScanPage extends StatefulWidget {
   final Function(int) navigateToTab;
@@ -41,6 +41,26 @@ class _ScanPageState extends State<ScanPage> {
     _isScanningSubscription?.cancel();
     FlutterBluePlus.stopScan();
     super.dispose();
+  }
+
+  Future<bool> _requestPermissions() async {
+    if (Platform.isAndroid) {
+      final deviceInfo = await DeviceInfoPlugin().androidInfo;
+      Map<Permission, PermissionStatus> statuses;
+
+      if (deviceInfo.version.sdkInt >= 31) {
+        statuses = await [
+          Permission.bluetoothScan,
+          Permission.bluetoothConnect,
+        ].request();
+      } else {
+        statuses = await [
+          Permission.location,
+        ].request();
+      }
+      return statuses.values.every((status) => status.isGranted);
+    }
+    return true;
   }
 
   Future<void> _startScan() async {
@@ -88,29 +108,6 @@ class _ScanPageState extends State<ScanPage> {
       ),
     );
   }
-
-  Future<bool> _requestPermissions() async {
-    if (Platform.isAndroid) {
-      final deviceInfo = await DeviceInfoPlugin().androidInfo;
-      Map<Permission, PermissionStatus> statuses;
-
-      if (deviceInfo.version.sdkInt >= 31) { // Android 12 (API 31) atau lebih baru
-        statuses = await [
-          Permission.bluetoothScan,
-          Permission.bluetoothConnect,
-        ].request();
-      } else { // Android 11 (API 30) atau lebih lama
-        statuses = await [
-          Permission.location,
-        ].request();
-      }
-
-      // apakah semua izin yang diminta diberikan?
-      return statuses.values.every((status) => status.isGranted);
-    }
-    return true; // untuk iOS, permission sudah dihandle di Info.plist
-  }
-
 
   @override
   Widget build(BuildContext context) {
@@ -243,6 +240,12 @@ class _DeviceSyncPanelState extends State<DeviceSyncPanel> {
 
     try {
       await widget.device.connect(timeout: const Duration(seconds: 15));
+      
+      if (mounted && Platform.isAndroid) {
+        await widget.device.requestMtu(512);
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+      
       if (mounted) {
         _discoverServicesAndInitiateSync();
       }
@@ -296,29 +299,34 @@ class _DeviceSyncPanelState extends State<DeviceSyncPanel> {
 
   void _onDataReceived(List<int> value) {
     if (value.isEmpty) return;
+    String completeLine = utf8.decode(value, allowMalformed: true).trim();
+    _processCompleteLine(completeLine);
+  }
 
-    String dataString = utf8.decode(value).trim();
-    
-    if (dataString.startsWith("END:")) {
+  void _processCompleteLine(String line) {
+    if (line.startsWith("END:")) {
       HapticFeedback.mediumImpact();
-      final parts = dataString.split(':');
+      final parts = line.split(':');
       final int sentCount = int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
       final bool isComplete = (sentCount == _recordsReceivedCount);
-
-      setState(() {
-        _isSyncing = false;
-        _syncCompleted = true;
-        if (isComplete) {
-          _statusMessage = "${AppStrings.deviceSyncComplete}\n$sentCount records received.";
-        } else {
-          _statusMessage = "${AppStrings.deviceSyncFailed}\nReceived $_recordsReceivedCount of $sentCount records.";
-        }
-      });
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+          _syncCompleted = true;
+          if (isComplete) {
+            _statusMessage = "${AppStrings.deviceSyncComplete}\n$sentCount records received.";
+          } else {
+            _statusMessage = "${AppStrings.deviceSyncFailed}\nReceived $_recordsReceivedCount of $sentCount records.";
+          }
+        });
+      }
       return;
     }
     
-    final parts = dataString.split(',');
-    if (parts.length >= 9) {
+    final parts = line.split(',');
+    // --- PERBAIKAN LOGIKA PARSING DI SINI ---
+    // Terima data dengan 9 kolom (tanpa speed) atau 10 kolom (dengan speed)
+    if (parts.length == 9 || parts.length == 10) {
       final dataToSave = {
         'device_id': parts[0].trim(),
         'timestamp': parts[1].trim(),
@@ -329,6 +337,8 @@ class _DeviceSyncPanelState extends State<DeviceSyncPanel> {
         'battery_percentage': int.tryParse(parts[6]) ?? 0,
         'tag_button': parts[7] == 'true',
         'geofence_status': parts[8] == 'true',
+        // Jika ada 10 kolom, ambil data speed. Jika tidak, beri nilai default 0.
+        'speed': parts.length == 10 ? (int.tryParse(parts[9]) ?? 0) : 0,
       };
       DatabaseHelper.instance.insertGpsData(dataToSave);
       if (mounted) {
@@ -337,6 +347,8 @@ class _DeviceSyncPanelState extends State<DeviceSyncPanel> {
           _statusMessage = AppStrings.deviceSyncingData;
         });
       }
+    } else {
+      print("Ignoring malformed or incomplete line: $line");
     }
   }
 
