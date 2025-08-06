@@ -1,5 +1,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Izin untuk Internet -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Izin untuk Kamera (QR Scanner) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Izin untuk Bluetooth -->
+    <!-- Untuk Android 12 (API 31) ke atas -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- Untuk Android 11 (API 30) ke bawah -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <!-- Izin Lokasi diperlukan untuk scan Bluetooth di Android 11 ke bawah -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <application
         android:label="flutter_application_1"
         android:name="${applicationName}"

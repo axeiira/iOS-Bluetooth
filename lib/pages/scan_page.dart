@@ -5,6 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../utils/app_strings.dart';
 import '../utils/database_helper.dart';
+import 'dart:io';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class ScanPage extends StatefulWidget {
   final Function(int) navigateToTab;
@@ -41,6 +44,18 @@ class _ScanPageState extends State<ScanPage> {
   }
 
   Future<void> _startScan() async {
+    bool permissionsGranted = await _requestPermissions(); // minta izin
+
+    if (!permissionsGranted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Bluetooth and Location permissions are required to scan for devices.")),
+        );
+      }
+      return;
+    }
+
+    // mulai scan
     HapticFeedback.lightImpact();
     await FlutterBluePlus.startScan(timeout: const Duration(seconds: 15));
   }
@@ -73,6 +88,29 @@ class _ScanPageState extends State<ScanPage> {
       ),
     );
   }
+
+  Future<bool> _requestPermissions() async {
+    if (Platform.isAndroid) {
+      final deviceInfo = await DeviceInfoPlugin().androidInfo;
+      Map<Permission, PermissionStatus> statuses;
+
+      if (deviceInfo.version.sdkInt >= 31) { // Android 12 (API 31) atau lebih baru
+        statuses = await [
+          Permission.bluetoothScan,
+          Permission.bluetoothConnect,
+        ].request();
+      } else { // Android 11 (API 30) atau lebih lama
+        statuses = await [
+          Permission.location,
+        ].request();
+      }
+
+      // apakah semua izin yang diminta diberikan?
+      return statuses.values.every((status) => status.isGranted);
+    }
+    return true; // untuk iOS, permission sudah dihandle di Info.plist
+  }
+
 
   @override
   Widget build(BuildContext context) {
