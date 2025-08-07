@@ -12,9 +12,8 @@ class SendResult {
 
 class HttpManager {
   final SettingsService _settingsService = SettingsService();
-  final AuthService _authService = AuthService(); // Tambahkan instance AuthService
+  final AuthService _authService = AuthService();
 
-  // Fungsi untuk mendapatkan header dengan token autentikasi
   Future<Map<String, String>> _getHeaders() async {
     final token = await _authService.getToken();
     return {
@@ -25,36 +24,27 @@ class HttpManager {
 
   Future<SendResult> sendBulkData(List<Map<String, dynamic>> telemetryList) async {
     final String baseUrl = await _settingsService.getBaseUrl();
-    
     try {
       String jsonData = jsonEncode(telemetryList);
-      final headers = await _getHeaders(); // Dapatkan header dengan token
-
+      final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse(baseUrl),
-        headers: headers, // Gunakan header yang sudah ada tokennya
+        headers: headers,
         body: jsonData,
       ).timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 201 || response.statusCode == 202) {
         final responseBody = jsonDecode(response.body);
-        // Coba dapatkan 'count' dari respons, jika tidak ada, hitung dari data yang dikirim
         final count = responseBody['count'] ?? telemetryList.length;
-        print("REAL: Batch data berhasil diterima oleh server. Server response: ${response.body}");
-        return SendResult(success: true, message: "Batch data berhasil diterima oleh server.", count: count);
+        return SendResult(success: true, message: "Batch data accepted by server.", count: count);
       } else {
-        print("REAL: Server merespon dengan error. Status: ${response.statusCode}\nBody: ${response.body}");
         return SendResult(
           success: false,
-          message: "Server merespon dengan error. Status: ${response.statusCode}\nBody: ${response.body}",
+          message: "Server error. Status: ${response.statusCode}\nBody: ${response.body}",
         );
       }
     } catch (e) {
-      print("REAL: Error Jaringan: ${e.toString()}");
-      return SendResult(
-        success: false,
-        message: "Error Jaringan: ${e.toString()}",
-      );
+      return SendResult(success: false, message: "Network Error: ${e.toString()}");
     }
   }
 
@@ -62,34 +52,89 @@ class HttpManager {
     final String baseTelemetryUrl = await _settingsService.getBaseUrl();
     final Uri baseUri = Uri.parse(baseTelemetryUrl);
     final String assignUrl = baseUri.replace(path: '/api/device-assignments/assign').toString();
-    
     try {
       String jsonData = jsonEncode(pairingsList);
-      final headers = await _getHeaders(); // Dapatkan header dengan token
-
+      final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse(assignUrl),
-        headers: headers, // Gunakan header yang sudah ada tokennya
+        headers: headers,
         body: jsonData,
       ).timeout(const Duration(seconds: 30));
 
-      // Anggap sukses jika status code adalah 201 (Created) ATAU 202 (Accepted)
       if (response.statusCode == 201 || response.statusCode == 202) {
-        print("REAL: Batch pairing berhasil diterima oleh server. Server response: ${response.body}");
         return SendResult(success: true, message: "Pairings sent successfully.");
       } else {
-        print("REAL: Server merespon dengan error. Status: ${response.statusCode}\nBody: ${response.body}");
-        return SendResult(
-          success: false,
-          message: "Server error: ${response.statusCode}",
-        );
+        return SendResult(success: false, message: "Server error: ${response.statusCode}");
       }
     } catch (e) {
-      print("REAL: Error Jaringan: ${e.toString()}");
-      return SendResult(
-        success: false,
-        message: "Network Error: ${e.toString()}",
-      );
+      return SendResult(success: false, message: "Network Error: ${e.toString()}");
     }
+  }
+
+
+  // API #1: Mengambil daftar tanggal yang memiliki data
+  Future<List<String>> getActiveDates() async {
+    final String baseTelemetryUrl = await _settingsService.getBaseUrl();
+    final Uri baseUri = Uri.parse(baseTelemetryUrl);
+    final url = baseUri.replace(path: '/api/telemetry/active-dates').toString();
+    
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(Uri.parse(url), headers: headers);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return List<String>.from(data['dates']);
+      }
+    } catch (e) {
+      print("Error fetching active dates: $e");
+    }
+    return [];
+  }
+
+  // API #2: Mengambil ringkasan harian
+  Future<List<Map<String, dynamic>>> getDailySummary(String date) async {
+    final String baseTelemetryUrl = await _settingsService.getBaseUrl();
+    final Uri baseUri = Uri.parse(baseTelemetryUrl);
+    final url = baseUri.replace(
+      path: '/api/telemetry/daily-summary',
+      queryParameters: {'date': date},
+    ).toString();
+    
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(Uri.parse(url), headers: headers);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return List<Map<String, dynamic>>.from(data['summary']);
+      }
+    } catch (e) {
+      print("Error fetching daily summary: $e");
+    }
+    return [];
+  }
+
+  // API #3: Mengambil detail rute untuk satu perangkat
+  Future<List<Map<String, dynamic>>> getRouteDetails(int deviceId, String date) async {
+    final String baseTelemetryUrl = await _settingsService.getBaseUrl();
+    final Uri baseUri = Uri.parse(baseTelemetryUrl);
+    final url = baseUri.replace(
+      path: '/api/telemetry/$deviceId/track', // Menggunakan endpoint /track yang sudah ada
+      queryParameters: {'date': date},
+    ).toString();
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(Uri.parse(url), headers: headers);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        // Respons dari /track memiliki struktur data['data']['track']
+        if (data['data'] != null && data['data']['track'] != null) {
+          return List<Map<String, dynamic>>.from(data['data']['track']);
+        }
+      }
+    } catch (e) {
+      print("Error fetching route details: $e");
+    }
+    return [];
   }
 }

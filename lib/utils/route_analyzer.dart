@@ -16,7 +16,6 @@ class RouteAnalysisResult {
 }
 
 class RouteAnalyzer {
-  // Fungsi utama untuk menganalisis data rute
   static RouteAnalysisResult analyze(List<Map<String, dynamic>> records) {
     if (records.length < 2) {
       return RouteAnalysisResult(
@@ -27,11 +26,11 @@ class RouteAnalyzer {
       );
     }
 
-    // Urutkan records berdasarkan timestamp
-    records.sort((a, b) => (a['timestamp'] as String).compareTo(b['timestamp'] as String));
+    // Gunakan 'createdAt' karena data berasal dari server
+    records.sort((a, b) => (a['createdAt'] as String).compareTo(b['createdAt'] as String));
 
-    final startTime = DateTime.parse(records.first['timestamp']!);
-    final endTime = DateTime.parse(records.last['timestamp']!);
+    final startTime = DateTime.parse(records.first['createdAt']!);
+    final endTime = DateTime.parse(records.last['createdAt']!);
     final totalDuration = endTime.difference(startTime);
 
     double totalDistanceMeters = 0;
@@ -47,12 +46,11 @@ class RouteAnalyzer {
       totalDistanceMeters += distance;
     }
 
-    // Hitung jumlah tag
-    final taggedEventsCount = records.where((r) => r['tag_button'] == 1).length;
+    // Gunakan 'eventTagging' dari server
+    final taggedEventsCount = records.where((r) => r['eventTagging'] == true).length;
 
     final totalDistanceKm = totalDistanceMeters / 1000;
     
-    // hitung avg speed (km/h)
     final averageSpeedKmh = (totalDuration.inSeconds > 0)
         ? (totalDistanceKm / (totalDuration.inHours + (totalDuration.inMinutes % 60) / 60))
         : 0.0;
@@ -65,14 +63,14 @@ class RouteAnalyzer {
     );
   }
 
-  // Fungsi untuk menghitung jarak antara dua koordinat (Haversine formula)
   static double _calculateDistance(LatLng latLng1, LatLng latLng2) {
-    const p = 0.017453292519943295; // Pi / 180
+    const p = 0.017453292519943295;
     final a = 0.5 -
         cos((latLng2.latitude - latLng1.latitude) * p) / 2 +
         cos(latLng1.latitude * p) *
             cos(latLng2.latitude * p) *
-            (1 - cos((latLng2.longitude - latLng1.longitude) * p)) / 2;
+            (1 - cos((latLng2.longitude - latLng1.longitude) * p)) /
+            2;
     return 12742 * asin(sqrt(a)) * 1000;
   }
 }

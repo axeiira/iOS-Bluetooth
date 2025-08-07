@@ -32,6 +32,10 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _onItemTapped(int index) {
+    // Jika pengguna secara manual menekan tab History, panggil refresh
+    if (index == 3) {
+      _historyPageKey.currentState?.refreshPage();
+    }
     setState(() {
       _selectedIndex = index;
     });
@@ -39,8 +43,9 @@ class _MainScreenState extends State<MainScreen> {
 
   // Fungsi untuk berpindah tab dan merefresh halaman riwayat
   void _navigateToTab(int index) {
-    if (index == 3) { // Index 2: HistoryPage
-      _historyPageKey.currentState?.refreshData();
+    if (index == 3) { // Index 3: HistoryPage
+      // --- PERBAIKAN DI SINI ---
+      _historyPageKey.currentState?.refreshPage();
     }
     setState(() {
       _selectedIndex = index;

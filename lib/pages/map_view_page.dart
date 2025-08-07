@@ -27,7 +27,6 @@ class _MapViewPageState extends State<MapViewPage> {
     }
   }
 
-  // formatting duration to HH:MM:SS
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, "0");
     final hours = twoDigits(duration.inHours);
@@ -73,7 +72,7 @@ class _MapViewPageState extends State<MapViewPage> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.cek',
+                userAgentPackageName: 'com.example.people_mobility',
                 tileProvider: CustomCachedTileProvider(),
               ),
               PolylineLayer(
@@ -87,7 +86,7 @@ class _MapViewPageState extends State<MapViewPage> {
               ),
               MarkerLayer(
                 markers: widget.records
-                    .where((record) => record['tag_button'] == 1)
+                    .where((record) => record['eventTagging'] == true) // Gunakan 'eventTagging' dari server
                     .map((record) {
                   return Marker(
                     point: LatLng(record['latitude'] as double, record['longitude'] as double),
@@ -146,7 +145,6 @@ class _MapViewPageState extends State<MapViewPage> {
               ),
             ],
           ),
-          // statistics card
           if (_analysisResult != null)
             Positioned(
               bottom: 16,
