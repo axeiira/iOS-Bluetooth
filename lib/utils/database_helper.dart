@@ -74,26 +74,22 @@ class DatabaseHelper {
     final id = await db.insert('gps_data', row);
     return id;
   }
-
-  // Fungsi untuk menyimpan pairing
+  
   Future<int> insertPairing(Map<String, dynamic> row) async {
     Database db = await instance.database;
     return await db.insert('pairings', row);
   }
 
-  // mendapatkan data pairing yang belum synced
   Future<List<Map<String, dynamic>>> getUnsyncedPairings() async {
     Database db = await instance.database;
     return await db.query('pairings', where: 'is_synced = 0', orderBy: 'timestamp DESC');
   }
 
-  // Mengambil semua data yang belum disinkronkan dari SQLite
   Future<List<Map<String, dynamic>>> getUnsyncedGpsData() async {
     Database db = await instance.database;
     return await db.query('gps_data', where: 'is_synced = 0');
   }
 
-  // Menghitung jumlah data yang belum disinkronkan dari SQLite
   Future<int> countUnsyncedGpsData() async {
     Database db = await instance.database;
     final result = await db.rawQuery('SELECT COUNT(*) FROM gps_data WHERE is_synced = 0');
@@ -110,7 +106,6 @@ class DatabaseHelper {
     ''');
   }
 
-  // Menandai data sebagai sudah disinkronkan di SQLite
   Future<int> markAsSynced(List<int> ids) async {
     if (ids.isEmpty) return 0;
     Database db = await instance.database;
@@ -160,7 +155,6 @@ class DatabaseHelper {
     return 0.0;
   }
 
-  // ekspor semua data menjadi string format CSV
   Future<String> exportToCsv() async {
     final db = await instance.database;
     final List<Map<String, dynamic>> allData = await db.query('gps_data');
@@ -173,7 +167,6 @@ class DatabaseHelper {
     return const ListToCsvConverter().convert(rows);
   }
 
-  // fungsi untuk mendapatkan data summary per device
   Future<List<Map<String, dynamic>>> getDataSummaryByDevice() async {
     final db = await instance.database;
     return await db.rawQuery('''
@@ -184,7 +177,6 @@ class DatabaseHelper {
     ''');
   }
 
-  // ekspor data untuk satu device spesifik
   Future<String> exportDeviceToCsv(String deviceId) async {
     final db = await instance.database;
     final List<Map<String, dynamic>> deviceData = await db.query('gps_data', where: 'device_id = ?', whereArgs: [deviceId]);
@@ -197,12 +189,9 @@ class DatabaseHelper {
     return const ListToCsvConverter().convert(rows);
   }
 
-  // fungsi untuk menghapus data yang sudah lebih dari 30 hari
   Future<int> deleteOldData() async {
     final db = await instance.database;
-    
-    const int retentionDays = 7;  // hardcoded
-    
+    const int retentionDays = 7;
     final cutoffDate = DateTime.now().subtract(const Duration(days: retentionDays));
     final timestampString = cutoffDate.toIso8601String();
     final count = await db.delete('gps_data', where: 'is_synced = 1 AND timestamp < ?', whereArgs: [timestampString]);
@@ -212,7 +201,6 @@ class DatabaseHelper {
     return count;
   }
 
-  // menandai pairing yang sudah disinkronkan
   Future<int> markPairingsAsSynced(List<int> ids) async {
     if (ids.isEmpty) return 0;
     Database db = await instance.database;
@@ -222,5 +210,75 @@ class DatabaseHelper {
     }
     final results = await batch.commit();
     return results.length;
+  }
+
+  Future<List<String>> getActiveDatesLocal() async {
+    final db = await instance.database;
+    final List<Map<String, dynamic>> result = await db.rawQuery('''
+      SELECT DISTINCT date(timestamp) as active_date 
+      FROM gps_data 
+      ORDER BY timestamp DESC
+    ''');
+    return result.map((row) => row['active_date'] as String).where((d) => d != null).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getDailySummaryLocal(String date) async {
+    final db = await instance.database;
+    final List<Map<String, dynamic>> queryResults = await db.rawQuery('''
+      SELECT
+        device_id,
+        COUNT(*) as recordCount,
+        MIN(timestamp) as startTime,
+        MAX(timestamp) as endTime
+      FROM gps_data
+      WHERE date(timestamp) = ?
+      GROUP BY device_id
+    ''', [date]);
+
+
+    final List<Map<String, dynamic>> summaries = List<Map<String, dynamic>>.from(queryResults);
+
+    for (var i = 0; i < summaries.length; i++) {
+      final summary = summaries[i];
+      final deviceId = summary['device_id'];
+      
+      final endOfDay = DateTime.parse(date).add(const Duration(days: 1)).toIso8601String();
+      final pairingResult = await db.query(
+        'pairings',
+        columns: ['worker_name'],
+        where: 'device_id = ? AND timestamp < ?',
+        whereArgs: [deviceId, endOfDay],
+        orderBy: 'timestamp DESC',
+        limit: 1,
+      );
+
+      final mutableSummary = Map<String, dynamic>.from(summary);
+      if (pairingResult.isNotEmpty) {
+        mutableSummary['workerName'] = pairingResult.first['worker_name'];
+      } else {
+        mutableSummary['workerName'] = 'Unassigned';
+      }
+
+      final taggedCountResult = await db.rawQuery('''
+        SELECT COUNT(*) 
+        FROM gps_data 
+        WHERE date(timestamp) = ? AND device_id = ? AND tag_button = 1
+      ''', [date, deviceId]);
+      mutableSummary['taggedEventsCount'] = Sqflite.firstIntValue(taggedCountResult) ?? 0;
+      
+      summaries[i] = mutableSummary;
+    }
+    
+    return summaries;
+  }
+
+  Future<List<Map<String, dynamic>>> getRouteDetailsLocal(String deviceId, String date) async {
+    final db = await instance.database;
+    return await db.query(
+      'gps_data',
+      where: 'device_id = ? AND date(timestamp) = ?',
+      whereArgs: [deviceId, date],
+      orderBy: 'timestamp ASC',
+    );
   }
 }
