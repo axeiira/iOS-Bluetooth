@@ -18,6 +18,7 @@ class _SplashPageState extends State<SplashPage> {
   }
 
   Future<void> _checkLoginStatus() async {
+    // Beri jeda 2 detik agar logo terlihat
     await Future.delayed(const Duration(seconds: 2));
 
     final authService = AuthService();
@@ -45,9 +46,26 @@ class _SplashPageState extends State<SplashPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            const Spacer(),
             Image.asset('assets/images/logo.png', height: 80),
-            const SizedBox(height: 24),
-            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              "People Mobility",
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 40.0),
+              child: Text(
+                "Powered by Mioto",
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey.shade500,
+                ),
+              ),
+            ),
           ],
         ),
       ),
