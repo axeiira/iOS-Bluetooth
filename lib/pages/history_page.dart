@@ -42,25 +42,39 @@ class HistoryPageState extends State<HistoryPage> {
   Future<void> _loadCalendarData() async {
     if (mounted) setState(() => _isLoadingCalendar = true);
     
-    final serverDatesFuture = _httpManager.getActiveDates();
-    final localDatesFuture = _dbHelper.getActiveDatesLocal();
+    try {
+      final serverDatesFuture = _httpManager.getActiveDates();
+      final localDatesFuture = _dbHelper.getActiveDatesLocal();
 
-    final results = await Future.wait([serverDatesFuture, localDatesFuture]);
-    final serverDateStrings = results[0];
-    final localDateStrings = results[1];
+      final results = await Future.wait([serverDatesFuture, localDatesFuture]);
+      final serverDateStrings = results[0];
+      final localDateStrings = results[1];
 
-    final combinedDateStrings = {...serverDateStrings, ...localDateStrings};
+      final combinedDateStrings = {...serverDateStrings, ...localDateStrings};
 
-    final activeDates = combinedDateStrings.map((ds) {
-      final date = DateTime.parse(ds);
-      return DateTime.utc(date.year, date.month, date.day);
-    }).toSet();
-    
-    if (mounted) {
-      setState(() {
-        _activeDates = activeDates;
-        _isLoadingCalendar = false;
-      });
+      final activeDates = combinedDateStrings.map((ds) {
+        final date = DateTime.parse(ds);
+        return DateTime.utc(date.year, date.month, date.day);
+      }).toSet();
+      
+      if (mounted) {
+        setState(() {
+          _activeDates = activeDates;
+        });
+      }
+    } catch (e) {
+      print("Error loading calendar data: $e");
+      if (mounted) {
+        setState(() {
+          _errorMessage = "Failed to load server data.";
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingCalendar = false;
+        });
+      }
     }
   }
 
@@ -72,26 +86,41 @@ class HistoryPageState extends State<HistoryPage> {
 
     final dateString = DateFormat('yyyy-MM-dd').format(day);
     final now = DateTime.now();
-    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+    final today = DateTime(now.year, now.month, now.day);
+    final sevenDaysAgo = today.subtract(const Duration(days: 6));
     
     List<Map<String, dynamic>> summaries;
 
-    if (day.isAfter(sevenDaysAgo) || isSameDay(day, sevenDaysAgo)) {
-      print("Fetching summary from LOCAL for $dateString");
-      summaries = await _dbHelper.getDailySummaryLocal(dateString);
-    } else {
-      print("Fetching summary from SERVER for $dateString");
-      summaries = await _httpManager.getDailySummary(dateString);
-    }
+    try {
+      if (!day.isBefore(sevenDaysAgo)) {
+        print("Fetching summary from LOCAL for $dateString");
+        summaries = await _dbHelper.getDailySummaryLocal(dateString);
+      } else {
+        print("Fetching summary from SERVER for $dateString");
+        summaries = await _httpManager.getDailySummary(dateString);
+      }
 
-    if (mounted) {
-      setState(() {
-        _dailySummaries = summaries;
-        _isLoadingSummary = false;
-        if (summaries.isEmpty) {
-          _errorMessage = "No activity recorded on this date.";
-        }
-      });
+      if (mounted) {
+        setState(() {
+          _dailySummaries = summaries;
+          if (summaries.isEmpty) {
+            _errorMessage = "No activity recorded on this date.";
+          }
+        });
+      }
+    } catch (e) {
+      print("Error loading summary: $e");
+      if (mounted) {
+        setState(() {
+          _errorMessage = "Failed to load summary.";
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingSummary = false;
+        });
+      }
     }
   }
 
@@ -117,10 +146,11 @@ class HistoryPageState extends State<HistoryPage> {
 
     final dateString = DateFormat('yyyy-MM-dd').format(_selectedDay!);
     final now = DateTime.now();
-    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+    final today = DateTime(now.year, now.month, now.day);
+    final sevenDaysAgo = today.subtract(const Duration(days: 6));
 
     List<Map<String, dynamic>> records;
-    bool isLocal = _selectedDay!.isAfter(sevenDaysAgo) || isSameDay(_selectedDay, sevenDaysAgo);
+    bool isLocal = !_selectedDay!.isBefore(sevenDaysAgo);
 
     if (isLocal) {
        print("Fetching route details from LOCAL for $dateString");
@@ -133,6 +163,7 @@ class HistoryPageState extends State<HistoryPage> {
     if (mounted) {
       Navigator.pop(context);
       if (records.isNotEmpty) {
+        
         List<Map<String, dynamic>> normalizedRecords = records;
         if (isLocal) {
             normalizedRecords = records.map((record) {
