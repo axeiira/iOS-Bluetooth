@@ -13,7 +13,7 @@ class MapViewPage extends StatefulWidget {
   State<MapViewPage> createState() => _MapViewPageState();
 }
 
-class _MapViewPageState extends State<MapViewPage> {
+class _MapViewPageState extends State<MapViewPage> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   RouteAnalysisResult? _analysisResult;
 
@@ -149,13 +149,38 @@ class _MapViewPageState extends State<MapViewPage> {
               ),
             ],
           ),
-          if (_analysisResult != null)
-            Positioned(
-              bottom: 16,
-              left: 16,
-              right: 16,
-              child: _buildStatisticsCard(),
+          
+          Positioned(
+            bottom: 16,
+            left: 16,
+            right: 16,
+            child: SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  FloatingActionButton(
+                    onPressed: () {
+                      _mapController.moveAndRotate(
+                        _mapController.camera.center,
+                        _mapController.camera.zoom,
+                        0.0, // Arahkan ke Utara
+                      );
+                    },
+                    mini: true,
+                    backgroundColor: Colors.white,
+                    tooltip: 'Reset North',
+                    child: Icon(
+                      Icons.explore_outlined,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (_analysisResult != null)
+                    _buildStatisticsCard(),
+                ],
+              ),
             ),
+          ),
         ],
       ),
     );
