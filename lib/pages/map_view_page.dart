@@ -38,7 +38,9 @@ class _MapViewPageState extends State<MapViewPage> {
   @override
   Widget build(BuildContext context) {
     final List<LatLng> points = widget.records.map((record) {
-      return LatLng(record['latitude'] as double, record['longitude'] as double);
+      final lat = (record['latitude'] as num).toDouble();
+      final lon = (record['longitude'] as num).toDouble();
+      return LatLng(lat, lon);
     }).toList();
 
     final LatLng? startPoint = points.isNotEmpty ? points.first : null;
@@ -86,10 +88,12 @@ class _MapViewPageState extends State<MapViewPage> {
               ),
               MarkerLayer(
                 markers: widget.records
-                    .where((record) => record['eventTagging'] == true) // Gunakan 'eventTagging' dari server
+                    .where((record) => record['eventTagging'] == true)
                     .map((record) {
+                  final lat = (record['latitude'] as num).toDouble();
+                  final lon = (record['longitude'] as num).toDouble();
                   return Marker(
-                    point: LatLng(record['latitude'] as double, record['longitude'] as double),
+                    point: LatLng(lat, lon),
                     width: 24, height: 24,
                     child: Tooltip(
                       message: "Tagged Event",

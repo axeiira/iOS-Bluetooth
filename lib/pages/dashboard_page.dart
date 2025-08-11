@@ -59,13 +59,13 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _refreshData() async {
     final unsynced = await DatabaseHelper.instance.countUnsyncedGpsData();
     final total = await DatabaseHelper.instance.getAllGpsData();
-    final uniqueDevices = await DatabaseHelper.instance.getUniqueDeviceIds();
+    final devicesToday = await DatabaseHelper.instance.getUniqueDeviceIdsForToday();
 
     if (mounted) {
       setState(() {
         _unsyncedCount = unsynced;
         _totalCount = total.length;
-        _devicesTodayCount = uniqueDevices.length; 
+        _devicesTodayCount = devicesToday; 
       });
     }
   }

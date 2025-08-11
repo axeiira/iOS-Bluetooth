@@ -145,6 +145,21 @@ class DatabaseHelper {
     return result.map((row) => row['device_id'] as String).toList();
   }
 
+  Future<int> getUniqueDeviceIdsForToday() async {
+    final db = await instance.database;
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day).toIso8601String();
+    final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59).toIso8601String();
+
+    final result = await db.rawQuery('''
+      SELECT COUNT(DISTINCT device_id)
+      FROM gps_data
+      WHERE timestamp >= ? AND timestamp <= ?
+    ''', [startOfDay, endOfDay]);
+
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
   Future<double> getDatabaseSize() async {
     final path = join(await getDatabasesPath(), 'telemetry.db');
     final file = File(path);

@@ -64,11 +64,6 @@ class HistoryPageState extends State<HistoryPage> {
       }
     } catch (e) {
       print("Error loading calendar data: $e");
-      if (mounted) {
-        setState(() {
-          _errorMessage = "Failed to load server data.";
-        });
-      }
     } finally {
       if (mounted) {
         setState(() {
@@ -95,6 +90,11 @@ class HistoryPageState extends State<HistoryPage> {
       if (!day.isBefore(sevenDaysAgo)) {
         print("Fetching summary from LOCAL for $dateString");
         summaries = await _dbHelper.getDailySummaryLocal(dateString);
+        
+        if (summaries.isEmpty) {
+          print("Local data empty, checking SERVER as fallback for $dateString");
+          summaries = await _httpManager.getDailySummary(dateString);
+        }
       } else {
         print("Fetching summary from SERVER for $dateString");
         summaries = await _httpManager.getDailySummary(dateString);
@@ -153,8 +153,13 @@ class HistoryPageState extends State<HistoryPage> {
     bool isLocal = !_selectedDay!.isBefore(sevenDaysAgo);
 
     if (isLocal) {
-       print("Fetching route details from LOCAL for $dateString");
+      print("Fetching route details from LOCAL for $dateString");
       records = await _dbHelper.getRouteDetailsLocal(deviceId.toString(), dateString);
+      if (records.isEmpty) {
+        print("Local route details empty, checking SERVER as fallback for $dateString");
+        records = await _httpManager.getRouteDetails(deviceId as int, dateString);
+        isLocal = false;
+      }
     } else {
        print("Fetching route details from SERVER for $dateString");
       records = await _httpManager.getRouteDetails(deviceId as int, dateString);

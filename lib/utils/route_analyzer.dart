@@ -26,7 +26,6 @@ class RouteAnalyzer {
       );
     }
 
-    // Gunakan 'createdAt' karena data berasal dari server
     records.sort((a, b) => (a['createdAt'] as String).compareTo(b['createdAt'] as String));
 
     final startTime = DateTime.parse(records.first['createdAt']!);
@@ -39,8 +38,13 @@ class RouteAnalyzer {
       final record1 = records[i];
       final record2 = records[i+1];
 
-      final point1 = LatLng(record1['latitude'] as double, record1['longitude'] as double);
-      final point2 = LatLng(record2['latitude'] as double, record2['longitude'] as double);
+      final lat1 = (record1['latitude'] as num).toDouble();
+      final lon1 = (record1['longitude'] as num).toDouble();
+      final lat2 = (record2['latitude'] as num).toDouble();
+      final lon2 = (record2['longitude'] as num).toDouble();
+
+      final point1 = LatLng(lat1, lon1);
+      final point2 = LatLng(lat2, lon2);
       
       final distance = _calculateDistance(point1, point2);
       totalDistanceMeters += distance;
@@ -51,15 +55,16 @@ class RouteAnalyzer {
 
     final totalDistanceKm = totalDistanceMeters / 1000;
     
-    final averageSpeedKmh = (totalDuration.inSeconds > 0)
-        ? (totalDistanceKm / (totalDuration.inHours + (totalDuration.inMinutes % 60) / 60))
+    final double totalDurationInHours = totalDuration.inSeconds / 3600.0;
+    final averageSpeedKmh = (totalDurationInHours > 0)
+        ? (totalDistanceKm / totalDurationInHours)
         : 0.0;
 
     return RouteAnalysisResult(
       totalDistanceKm: totalDistanceKm,
       totalDuration: totalDuration,
       taggedEventsCount: taggedEventsCount,
-      averageSpeedKmh: averageSpeedKmh.isNaN ? 0.0 : averageSpeedKmh,
+      averageSpeedKmh: averageSpeedKmh.isFinite ? averageSpeedKmh : 0.0,
     );
   }
 
