@@ -3,7 +3,6 @@ import '../utils/database_helper.dart';
 import 'sync_page.dart';
 import '../utils/sync_status_service.dart';
 import '../utils/app_strings.dart';
-import 'package:intl/intl.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -18,9 +17,13 @@ class _DashboardPageState extends State<DashboardPage> {
   int _devicesTodayCount = 0;
   DateTime? _lastSyncTime;
   
+  String _greeting = "Welcome Back!";
+  String _greetingSubtitle = "Let's check today's field activity.";
+
   @override
   void initState() {
     super.initState();
+    _updateGreeting();
     _refreshData();
     SyncStatusService.instance.addListener(_onSyncStatusChanged);
   }
@@ -30,9 +33,19 @@ class _DashboardPageState extends State<DashboardPage> {
     SyncStatusService.instance.removeListener(_onSyncStatusChanged);
     super.dispose();
   }
+  
+  void _updateGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      _greeting = "Good Morning!";
+    } else if (hour < 18) {
+      _greeting = "Good Afternoon!";
+    } else {
+      _greeting = "Good Evening!";
+    }
+  }
 
   void _onSyncStatusChanged() {
-    // Refresh data when sync status changes to reflect new counts
     if (SyncStatusService.instance.value == SyncStatus.completed) {
       Future.delayed(const Duration(seconds: 1), _refreshData);
       setState(() {
@@ -80,13 +93,12 @@ class _DashboardPageState extends State<DashboardPage> {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           children: [
-            const Text(AppStrings.welcomeBack, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-            Text(AppStrings.dataSummary, style: theme.textTheme.titleMedium?.copyWith(color: Colors.grey.shade600)),
+            Text(_greeting, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+            Text(_greetingSubtitle, style: theme.textTheme.titleMedium?.copyWith(color: Colors.grey.shade600)),
             const SizedBox(height: 24),
             _buildSyncStatusCard(context),
             const SizedBox(height: 24),
             _buildMetricsGrid(context),
-            const SizedBox(height: 24),
           ],
         ),
       ),
