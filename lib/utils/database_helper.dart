@@ -8,7 +8,7 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._privateConstructor();
 
   static Database? _database;
-  static const _dbVersion = 6;
+  static const _dbVersion = 8;
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -26,7 +26,21 @@ class DatabaseHelper {
     );
   }
 
-  Future<void> _onCreate(Database db, int version) async {
+  Future<void> _createPairingsTable(Database db) async {
+     await db.execute('''
+      CREATE TABLE pairings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        device_id TEXT NOT NULL,
+        worker_id TEXT NOT NULL,
+        worker_name TEXT,
+        assignment_reason TEXT,
+        timestamp TEXT NOT NULL,
+        is_synced INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+  }
+
+  Future<void> _createGpsDataTable(Database db) async {
     await db.execute('''
       CREATE TABLE gps_data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,26 +54,30 @@ class DatabaseHelper {
         tag_button INTEGER NOT NULL,
         geofence_status INTEGER NOT NULL,
         speed INTEGER NOT NULL DEFAULT 0,
-        is_synced INTEGER NOT NULL DEFAULT 0
-      )
-    ''');
-    
-    await db.execute('''
-      CREATE TABLE pairings (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        device_id TEXT NOT NULL,
-        worker_id TEXT NOT NULL,
-        worker_name TEXT,
-        assignment_reason TEXT,
-        timestamp TEXT NOT NULL,
-        is_synced INTEGER NOT NULL DEFAULT 0
+        is_synced INTEGER NOT NULL DEFAULT 0,
+        -- Aturan untuk mencegah duplikasi
+        UNIQUE (device_id, timestamp) 
       )
     ''');
   }
 
+  Future<void> _onCreate(Database db, int version) async {
+    await _createGpsDataTable(db);
+    await _createPairingsTable(db);
+  }
+
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 6) {
-      await db.execute('ALTER TABLE gps_data ADD COLUMN speed INTEGER NOT NULL DEFAULT 0;');
+      try {
+        await db.execute('ALTER TABLE gps_data ADD COLUMN speed INTEGER NOT NULL DEFAULT 0;');
+      } catch (e) {
+        print("Could not add speed column, it might already exist.");
+      }
+    }
+    if (oldVersion < 8) {
+      await db.execute('DROP TABLE IF EXISTS gps_data');
+      await _createGpsDataTable(db);
+      print("Recreated gps_data table with unique constraint.");
     }
   }
 
@@ -71,7 +89,12 @@ class DatabaseHelper {
     if (row.containsKey('geofence_status') && row['geofence_status'] is bool) {
       row['geofence_status'] = row['geofence_status'] ? 1 : 0;
     }
-    final id = await db.insert('gps_data', row);
+    
+    final id = await db.insert(
+      'gps_data', 
+      row, 
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
     return id;
   }
   

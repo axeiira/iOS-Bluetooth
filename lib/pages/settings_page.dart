@@ -2,66 +2,29 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import '../utils/database_helper.dart';
 import '../utils/app_strings.dart';
-import '../utils/auth_service.dart';
+import '../utils/map_tile_provider.dart';
 import 'local_storage_page.dart';
-import 'login_page.dart';
 import 'server_configuration_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
-  // confirm logout dialog
-  Future<void> _showLogoutConfirmationDialog(BuildContext context) async {
-    final bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text("Logout"),
-          content: const Text("Are you sure you want to log out?"),
-          actions: <Widget>[
-            TextButton(
-              child: const Text("Cancel"),
-              onPressed: () => Navigator.of(context).pop(false),
-            ),
-            TextButton(
-              style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-              child: const Text("Logout"),
-              onPressed: () => Navigator.of(context).pop(true),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirm == true && context.mounted) {
-      final authService = AuthService();
-      await authService.logout();
-      
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-        (Route<dynamic> route) => false,
-      );
-    }
-  }
-
-  // Fungsi untuk membersihkan cache dan file sementara
   Future<void> _clearAllCachesAndTempFiles(BuildContext context) async {
     try {
+      await MyCacheManager.custom.emptyCache();
       final tempDir = await getTemporaryDirectory();
-      final appSupportDir = await getApplicationSupportDirectory();
-      const cacheFolderName = 'mapCacheKey';
-
-      final directoriesToCheck = [
-        Directory(p.join(tempDir.path, cacheFolderName)),
-        Directory(p.join(appSupportDir.path, cacheFolderName)),
-        Directory(p.join(appSupportDir.path, 'libCachedImageData')),
-      ];
-
-      for (var dir in directoriesToCheck) {
-        if (await dir.exists()) {
-          await dir.delete(recursive: true);
-        }
+      if (tempDir.existsSync()) {
+        tempDir.listSync().forEach((var entity) {
+          if (entity is File) {
+            try {
+              entity.deleteSync();
+            } catch (e) {
+              print("Error deleting temp file: $e");
+            }
+          }
+        });
       }
 
       if (context.mounted) {
@@ -77,6 +40,43 @@ class SettingsPage extends StatelessWidget {
     }
   }
 
+  Future<void> _showDeleteConfirmationDialog(BuildContext context) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Delete All Local Data?"),
+          content: const Text("This action cannot be undone and will permanently delete all logs from your device."),
+          actions: <Widget>[
+            TextButton(
+              child: const Text("Cancel"),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+              child: const Text("Delete All"),
+              onPressed: () async {
+                 await DatabaseHelper.instance.deleteAllData();
+                 if (context.mounted) {
+                    Navigator.of(context).pop(true);
+                 }
+              }
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("All local data has been deleted."),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -89,7 +89,6 @@ class SettingsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          // Bagian General
           _buildSectionHeader(context, "General"),
           Card(
             child: Column(
@@ -111,7 +110,6 @@ class SettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // Bagian Data Management
           _buildSectionHeader(context, "Data Management"),
           Card(
             child: Column(
@@ -141,17 +139,16 @@ class SettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           
-          _buildSectionHeader(context, "Account"),
-          Card(
+           _buildSectionHeader(context, "About"),
+           Card(
             child: Column(
               children: [
-                _buildListTile(
+                 _buildListTile(
                   context,
-                  icon: Icons.logout_rounded,
-                  iconColor: theme.colorScheme.error,
-                  title: "Logout",
-                  subtitle: "End your current session",
-                  onTap: () => _showLogoutConfirmationDialog(context),
+                  icon: Icons.info_rounded,
+                  title: "About ${AppStrings.appName}",
+                  subtitle: "Version 2.0.0 (Redesigned)",
+                  onTap: () => _showAboutDialog(context),
                 ),
               ],
             ),
@@ -193,6 +190,34 @@ class SettingsPage extends StatelessWidget {
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: Text(subtitle, style: TextStyle(color: Colors.grey.shade600)),
       onTap: onTap,
+    );
+  }
+
+  void _showAboutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("About ${AppStrings.appName}"),
+          content: const SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                Text("Version: 2.0.0 (Redesigned)"),
+                SizedBox(height: 8),
+                Text("Developed by: Mioto"),
+                SizedBox(height: 8),
+                Text("An IoT data collector application for agricultural industry needs."),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Close'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+        );
+      },
     );
   }
 }
