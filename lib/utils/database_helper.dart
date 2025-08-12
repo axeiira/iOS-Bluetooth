@@ -55,7 +55,6 @@ class DatabaseHelper {
         geofence_status INTEGER NOT NULL,
         speed INTEGER NOT NULL DEFAULT 0,
         is_synced INTEGER NOT NULL DEFAULT 0,
-        -- Aturan untuk mencegah duplikasi
         UNIQUE (device_id, timestamp) 
       )
     ''');
@@ -257,7 +256,11 @@ class DatabaseHelper {
       FROM gps_data 
       ORDER BY timestamp DESC
     ''');
-    return result.map((row) => row['active_date'] as String).where((d) => d != null).toList();
+
+    return result
+        .map((row) => row['active_date'] as String?)
+        .whereType<String>()
+        .toList();
   }
 
   Future<List<Map<String, dynamic>>> getDailySummaryLocal(String date) async {
