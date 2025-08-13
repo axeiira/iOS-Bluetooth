@@ -256,39 +256,70 @@ class DatabaseHelper {
       FROM gps_data 
       ORDER BY timestamp DESC
     ''');
-
     return result
         .map((row) => row['active_date'] as String?)
         .whereType<String>()
         .toList();
   }
 
-  Future<List<Map<String, dynamic>>> getDailySummaryLocal(String date) async {
+  Future<List<Map<String, dynamic>>> getDailySummaryLocal(
+    String date, {
+    String? deviceId,
+    String? employeeName,
+  }) async {
     final db = await instance.database;
-    final List<Map<String, dynamic>> queryResults = await db.rawQuery('''
-      SELECT
-        device_id,
-        COUNT(*) as recordCount,
-        MIN(timestamp) as startTime,
-        MAX(timestamp) as endTime
-      FROM gps_data
-      WHERE date(timestamp) = ?
-      GROUP BY device_id
-    ''', [date]);
 
+    String whereClause = 'date(timestamp) = ?';
+    List<dynamic> whereArgs = [date];
+
+    if (deviceId != null && deviceId.isNotEmpty) {
+      whereClause += ' AND device_id = ?';
+      whereArgs.add(deviceId);
+    }
+    
+    if (employeeName != null && employeeName.isNotEmpty) {
+      final assignedDevices = await db.query(
+        'pairings',
+        columns: ['device_id'],
+        where: 'worker_name LIKE ?',
+        whereArgs: ['%$employeeName%'],
+        distinct: true,
+      );
+      if (assignedDevices.isNotEmpty) {
+        final deviceIds = assignedDevices.map((d) => d['device_id'] as String).toList();
+        final placeholders = List.generate(deviceIds.length, (index) => '?').join(',');
+        whereClause += ' AND device_id IN ($placeholders)';
+        whereArgs.addAll(deviceIds);
+      } else {
+        return [];
+      }
+    }
+
+    final List<Map<String, dynamic>> queryResults = await db.query(
+      'gps_data',
+      columns: [
+        'device_id',
+        'COUNT(*) as recordCount',
+        'MIN(timestamp) as startTime',
+        'MAX(timestamp) as endTime'
+      ],
+      where: whereClause,
+      whereArgs: whereArgs,
+      groupBy: 'device_id',
+    );
 
     final List<Map<String, dynamic>> summaries = List<Map<String, dynamic>>.from(queryResults);
 
     for (var i = 0; i < summaries.length; i++) {
       final summary = summaries[i];
-      final deviceId = summary['device_id'];
+      final currentDeviceId = summary['device_id'];
       
       final endOfDay = DateTime.parse(date).add(const Duration(days: 1)).toIso8601String();
       final pairingResult = await db.query(
         'pairings',
         columns: ['worker_name'],
         where: 'device_id = ? AND timestamp < ?',
-        whereArgs: [deviceId, endOfDay],
+        whereArgs: [currentDeviceId, endOfDay],
         orderBy: 'timestamp DESC',
         limit: 1,
       );
@@ -304,7 +335,7 @@ class DatabaseHelper {
         SELECT COUNT(*) 
         FROM gps_data 
         WHERE date(timestamp) = ? AND device_id = ? AND tag_button = 1
-      ''', [date, deviceId]);
+      ''', [date, currentDeviceId]);
       mutableSummary['taggedEventsCount'] = Sqflite.firstIntValue(taggedCountResult) ?? 0;
       
       summaries[i] = mutableSummary;

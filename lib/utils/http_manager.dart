@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'settings_service.dart';
 import 'auth_service.dart';
@@ -21,6 +22,62 @@ class HttpManager {
       if (token != null) 'Authorization': 'Bearer $token',
     };
   }
+
+  Future<List<Map<String, dynamic>>> getDailySummary(
+    String date, {
+    String? deviceId,
+    String? employeeName,
+  }) async {
+    final String baseTelemetryUrl = await _settingsService.getBaseUrl();
+    final Uri baseUri = Uri.parse(baseTelemetryUrl);
+    
+    final queryParameters = <String, String>{'date': date};
+    if (deviceId != null && deviceId.isNotEmpty) {
+      queryParameters['deviceId'] = deviceId;
+    }
+    if (employeeName != null && employeeName.isNotEmpty) {
+      queryParameters['employeeName'] = employeeName;
+    }
+
+    final url = baseUri.replace(
+      path: '/api/telemetry/daily-summary',
+      queryParameters: queryParameters,
+    ).toString();
+    
+    // debug logging
+    if (kDebugMode) {
+      print("================ HTTP MANAGER DEBUG ================");
+      print("Memanggil URL: $url");
+      print("====================================================");
+    }
+    
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(Uri.parse(url), headers: headers);
+
+      // debug logging
+      if (kDebugMode) {
+        print("================ HTTP MANAGER DEBUG ================");
+        print("Status Kode dari Server: ${response.statusCode}");
+        print("Body Respons dari Server (Raw):");
+        print(response.body);
+        print("====================================================");
+      }
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['summary'] is List) {
+          return List<Map<String, dynamic>>.from(data['summary']);
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print("Error saat memanggil getDailySummary: $e");
+      }
+    }
+    return [];
+  }
+
 
   Future<SendResult> sendBulkData(List<Map<String, dynamic>> telemetryList) async {
     final String baseUrl = await _settingsService.getBaseUrl();
@@ -71,8 +128,6 @@ class HttpManager {
     }
   }
 
-
-  // API #1: Mengambil daftar tanggal yang memiliki data
   Future<List<String>> getActiveDates() async {
     final String baseTelemetryUrl = await _settingsService.getBaseUrl();
     final Uri baseUri = Uri.parse(baseTelemetryUrl);
@@ -83,7 +138,9 @@ class HttpManager {
       final response = await http.get(Uri.parse(url), headers: headers);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return List<String>.from(data['dates']);
+        if (data['dates'] is List) {
+          return List<String>.from(data['dates']);
+        }
       }
     } catch (e) {
       print("Error fetching active dates: $e");
@@ -91,34 +148,11 @@ class HttpManager {
     return [];
   }
 
-  // API #2: Mengambil ringkasan harian
-  Future<List<Map<String, dynamic>>> getDailySummary(String date) async {
-    final String baseTelemetryUrl = await _settingsService.getBaseUrl();
-    final Uri baseUri = Uri.parse(baseTelemetryUrl);
-    final url = baseUri.replace(
-      path: '/api/telemetry/daily-summary',
-      queryParameters: {'date': date},
-    ).toString();
-    
-    try {
-      final headers = await _getHeaders();
-      final response = await http.get(Uri.parse(url), headers: headers);
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return List<Map<String, dynamic>>.from(data['summary']);
-      }
-    } catch (e) {
-      print("Error fetching daily summary: $e");
-    }
-    return [];
-  }
-
-  // API #3: Mengambil detail rute untuk satu perangkat
   Future<List<Map<String, dynamic>>> getRouteDetails(int deviceId, String date) async {
     final String baseTelemetryUrl = await _settingsService.getBaseUrl();
     final Uri baseUri = Uri.parse(baseTelemetryUrl);
     final url = baseUri.replace(
-      path: '/api/telemetry/$deviceId/track', // Menggunakan endpoint /track yang sudah ada
+      path: '/api/telemetry/$deviceId/track',
       queryParameters: {'date': date},
     ).toString();
 
@@ -127,8 +161,7 @@ class HttpManager {
       final response = await http.get(Uri.parse(url), headers: headers);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        // Respons dari /track memiliki struktur data['data']['track']
-        if (data['data'] != null && data['data']['track'] != null) {
+        if (data['data'] != null && data['data']['track'] is List) {
           return List<Map<String, dynamic>>.from(data['data']['track']);
         }
       }

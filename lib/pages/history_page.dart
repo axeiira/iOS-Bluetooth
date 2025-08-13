@@ -27,6 +27,10 @@ class HistoryPageState extends State<HistoryPage> {
   bool _isLoadingSummary = false;
   String? _errorMessage;
 
+  // State untuk menyimpan nilai filter
+  String? _filterDeviceId;
+  String? _filterEmployeeName;
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +45,74 @@ class HistoryPageState extends State<HistoryPage> {
     }
   }
 
+  Future<void> _showFilterDialog() async {
+    final deviceIdController = TextEditingController(text: _filterDeviceId);
+    final employeeNameController = TextEditingController(text: _filterEmployeeName);
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Filter Riwayat'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: deviceIdController,
+                  decoration: const InputDecoration(
+                    labelText: 'Device ID',
+                    hintText: 'enter device ID',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.text,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: employeeNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Employee Name',
+                    hintText: 'enter employee name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(null),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop({'deviceId': '', 'employeeName': ''});
+              },
+              child: const Text('Reset'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop({
+                  'deviceId': deviceIdController.text.trim(),
+                  'employeeName': employeeNameController.text.trim(),
+                });
+              },
+              child: const Text('Apply'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _filterDeviceId = result['deviceId'];
+        _filterEmployeeName = result['employeeName'];
+      });
+      _loadSummaryForDay(_selectedDay ?? DateTime.now());
+    }
+  }
+
   Future<void> _loadCalendarData() async {
     if (mounted) setState(() => _isLoadingCalendar = true);
     
@@ -52,33 +124,18 @@ class HistoryPageState extends State<HistoryPage> {
       final serverDateStrings = results[0];
       final localDateStrings = results[1];
 
-      // debug
-      print("======================================================");
-      print("DIAGNOSTIK: Data Mentah Tanggal Aktif");
-      print("Dari Database Lokal: $localDateStrings");
-      print("Dari Server: $serverDateStrings");
-      print("======================================================");
-
       final combinedDateStrings = {...serverDateStrings, ...localDateStrings};
 
       final activeDates = combinedDateStrings.map((ds) {
-        if (ds == null) return null;
+        if (ds.isEmpty) return null;
         try {
           final date = DateTime.parse(ds);
           return DateTime.utc(date.year, date.month, date.day);
         } catch (e) {
-          print("WARNING: Format tanggal tidak valid dan diabaikan -> $ds");
           return null;
         }
-      }).where((d) => d != null).cast<DateTime>().toSet();
+      }).whereType<DateTime>().toSet();
       
-      // debug
-      print("======================================================");
-      print("DIAGNOSTIK: Hasil Akhir Set Tanggal (UTC)");
-      print("Total tanggal aktif terproses: ${activeDates.length}");
-      print("Isi Set: $activeDates");
-      print("======================================================");
-
       if (mounted) {
         setState(() {
           _activeDates = activeDates;
@@ -96,35 +153,57 @@ class HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _loadSummaryForDay(DateTime day) async {
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _isLoadingSummary = true;
       _errorMessage = null;
     });
+    }
 
     final dateString = DateFormat('yyyy-MM-dd').format(day);
     final now = DateTime.now();
-    // menggunakan UTC untuk perbandingan tanggal agar konsisten
     final today = DateTime.utc(now.year, now.month, now.day);
     final selectedUtc = DateTime.utc(day.year, day.month, day.day);
     final sevenDaysAgo = today.subtract(const Duration(days: 6));
     
     List<Map<String, dynamic>> summaries = [];
+    bool wasFetchedFromServer = false;
 
     try {
       if (selectedUtc.isAfter(sevenDaysAgo) || selectedUtc.isAtSameMomentAs(sevenDaysAgo)) {
-        summaries = await _dbHelper.getDailySummaryLocal(dateString);
+        summaries = await _dbHelper.getDailySummaryLocal(
+          dateString,
+          deviceId: _filterDeviceId,
+          employeeName: _filterEmployeeName,
+        );
         if (summaries.isEmpty) {
-          summaries = await _httpManager.getDailySummary(dateString);
+          summaries = await _httpManager.getDailySummary(
+            dateString,
+            deviceId: _filterDeviceId,
+            employeeName: _filterEmployeeName,
+          );
+          wasFetchedFromServer = true;
         }
       } else {
-        summaries = await _httpManager.getDailySummary(dateString);
+        summaries = await _httpManager.getDailySummary(
+          dateString,
+          deviceId: _filterDeviceId,
+          employeeName: _filterEmployeeName,
+        );
+        wasFetchedFromServer = true;
       }
+
+      final finalSummaries = summaries.map((s) {
+        final newSummary = Map<String, dynamic>.from(s);
+        newSummary['dataSource'] = wasFetchedFromServer ? 'server' : 'local';
+        return newSummary;
+      }).toList();
 
       if (mounted) {
         setState(() {
-          _dailySummaries = summaries;
-          if (summaries.isEmpty) {
-            _errorMessage = "No activity recorded on this date.";
+          _dailySummaries = finalSummaries;
+          if (finalSummaries.isEmpty) {
+            _errorMessage = "No activity recorded.";
           }
         });
       }
@@ -215,31 +294,44 @@ class HistoryPageState extends State<HistoryPage> {
       );
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Could not fetch route details."))
+        const SnackBar(content: Text("No route data found for this device on the selected date."))
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final bool isFilterActive = (_filterDeviceId?.isNotEmpty ?? false) || (_filterEmployeeName?.isNotEmpty ?? false);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(AppStrings.historyTitle, style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: IconButton(
+              icon: Icon(
+                Icons.filter_list,
+                color: isFilterActive ? Theme.of(context).colorScheme.primary : Colors.grey,
+              ),
+              onPressed: _showFilterDialog,
+              tooltip: 'Filter History',
+            ),
+          )
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: refreshPage,
-        child: Column(
+        child: ListView(
           children: [
             _buildCalendar(),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: Divider(),
             ),
-            Expanded(
-              child: _buildSummaryList(),
-            ),
+            _buildSummaryList(),
           ],
         ),
       ),
@@ -280,7 +372,7 @@ class HistoryPageState extends State<HistoryPage> {
           color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
           shape: BoxShape.circle,
         ),
-         markerSize: 5.0,
+        markerSize: 5.0,
       ),
       headerStyle: const HeaderStyle(
         formatButtonVisible: false,
@@ -310,7 +402,9 @@ class HistoryPageState extends State<HistoryPage> {
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       itemCount: _dailySummaries.length,
       itemBuilder: (context, index) {
         final summary = _dailySummaries[index];
@@ -319,12 +413,15 @@ class HistoryPageState extends State<HistoryPage> {
         final recordCount = summary['recordCount'] ?? 0;
         final startTimeStr = summary['startTime'];
         final endTimeStr = summary['endTime'];
-        
+        final dataSource = summary['dataSource'] ?? 'local'; // Default ke lokal jika tidak ada
+
         String timeRange = "N/A";
         if (startTimeStr != null && endTimeStr != null) {
-            final startTime = DateFormat.jm().format(DateTime.parse(startTimeStr).toLocal());
-            final endTime = DateFormat.jm().format(DateTime.parse(endTimeStr).toLocal());
-            timeRange = "$startTime - $endTime";
+            try {
+              final startTime = DateFormat.jm().format(DateTime.parse(startTimeStr).toLocal());
+              final endTime = DateFormat.jm().format(DateTime.parse(endTimeStr).toLocal());
+              timeRange = "$startTime - $endTime";
+            } catch (e) { /* Abaikan jika format salah */ }
         }
 
         return Card(
@@ -340,9 +437,22 @@ class HistoryPageState extends State<HistoryPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    "Device $deviceId",
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Device $deviceId",
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      Tooltip(
+                        message: dataSource == 'server' ? 'Data from Server' : 'Data from Local Storage',
+                        child: Icon(
+                          dataSource == 'server' ? Icons.cloud_outlined : Icons.phone_android_outlined,
+                          size: 20,
+                          color: dataSource == 'server' ? Colors.blue.shade600 : Colors.green.shade600,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(workerName, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600)),
