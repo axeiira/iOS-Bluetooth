@@ -2,7 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsService {
   // Default urls
-  static const String _defaultBaseUrl = "http://192.168.17.210:6432/api/telemetry";
+  static const String _defaultBaseUrl = "http://192.168.17.210:6432/api/telemetry/log/ingest";
   static const String _defaultNotificationUrl = "http://192.168.17.210:5173/api/notification"; // belum diimplement
 
   // Keys for storage
