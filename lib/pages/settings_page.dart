@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
 import '../utils/database_helper.dart';
 import '../utils/app_strings.dart';
 import '../utils/map_tile_provider.dart';
@@ -46,7 +45,7 @@ class SettingsPage extends StatelessWidget {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text("Delete All Local Data?"),
-          content: const Text("This action cannot be undone and will permanently delete all logs from your device."),
+          content: const Text("This action cannot be undone and will permanently delete all telemetry logs and pairings from this device."),
           actions: <Widget>[
             TextButton(
               child: const Text("Cancel"),
@@ -56,6 +55,7 @@ class SettingsPage extends StatelessWidget {
               style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
               child: const Text("Delete All"),
               onPressed: () async {
+                 // Memanggil fungsi deleteAllData dari DatabaseHelper
                  await DatabaseHelper.instance.deleteAllData();
                  if (context.mounted) {
                     Navigator.of(context).pop(true);
@@ -116,14 +116,6 @@ class SettingsPage extends StatelessWidget {
               children: [
                 _buildListTile(
                   context,
-                  icon: Icons.cleaning_services_rounded,
-                  title: "Clear Caches & Temp Files",
-                  subtitle: "Free up space from map and export files",
-                  onTap: () => _clearAllCachesAndTempFiles(context),
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                _buildListTile(
-                  context,
                   icon: Icons.storage_rounded,
                   title: AppStrings.settingsLocalStorage,
                   subtitle: AppStrings.settingsStorageSubtitle,
@@ -133,6 +125,23 @@ class SettingsPage extends StatelessWidget {
                       MaterialPageRoute(builder: (context) => const LocalStoragePage()),
                     );
                   },
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                _buildListTile(
+                  context,
+                  icon: Icons.cleaning_services_rounded,
+                  title: "Clear Cache & Temp Files",
+                  subtitle: "Free up space from map and export files",
+                  onTap: () => _clearAllCachesAndTempFiles(context),
+                ),
+                 const Divider(height: 1, indent: 16, endIndent: 16),
+                _buildListTile(
+                  context,
+                  icon: Icons.delete_forever_rounded,
+                  iconColor: theme.colorScheme.error,
+                  title: "Delete All Local Data",
+                  subtitle: "Delete all telemetry logs & pairings",
+                  onTap: () => _showDeleteConfirmationDialog(context),
                 ),
               ],
             ),
@@ -145,7 +154,7 @@ class SettingsPage extends StatelessWidget {
               children: [
                  _buildListTile(
                   context,
-                  icon: Icons.info_rounded,
+                  icon: Icons.info_outline_rounded,
                   title: "About ${AppStrings.appName}",
                   subtitle: "Version 2.0.0 (Redesigned)",
                   onTap: () => _showAboutDialog(context),
