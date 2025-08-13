@@ -18,7 +18,7 @@ class _DashboardPageState extends State<DashboardPage> {
   DateTime? _lastSyncTime;
   
   String _greeting = "Welcome Back!";
-  String _greetingSubtitle = "Let's check today's field activity.";
+  final String _greetingSubtitle = "Let's check today's field activity.";
 
   @override
   void initState() {
